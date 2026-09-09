@@ -1,0 +1,5 @@
+# 构建产物(由 build-pkgs.py 产出,二进制应发到 GitHub Releases,不进源码库)
+release/
+
+# 交叉编译中间体(build-pkgs.py 在仓库根生成)
+/clipforge-*

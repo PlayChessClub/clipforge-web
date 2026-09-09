@@ -8,9 +8,9 @@
 # 说明: 全部纯静态编译(CGO_ENABLED=0)。Linux 版 = CLI(终端) + 浏览器(桌面图标,无 webkit)。
 import os, sys, io, time, tarfile, zipfile, subprocess, argparse
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SERVER = os.path.join(ROOT, "web", "server")
-REL = os.path.join(ROOT, "web", "release")
+ROOT = os.path.dirname(os.path.abspath(__file__))
+SERVER = os.path.join(ROOT, "server")
+REL = os.path.join(ROOT, "release")
 VERSION = os.environ.get("CF_VERSION", "3.2.2")
 
 def sh(cmd, cwd=None, env=None):
@@ -19,7 +19,7 @@ def sh(cmd, cwd=None, env=None):
 
 def build_bin(goos, goarch, cgo):
     out = os.path.join(ROOT, f"clipforge-{goos}-{goarch}" + (".exe" if goos == "windows" else ""))
-    sh(f"go build -ldflags=\"-s -w\" -o \"{out}\" .", cwd=SERVER,
+    sh(f"go build -mod=vendor -ldflags=\"-s -w\" -o \"{out}\" .", cwd=SERVER,
        env={"GOOS": goos, "GOARCH": goarch, "CGO_ENABLED": "1" if cgo else "0"})
     return out
 
@@ -50,8 +50,8 @@ def tar_gz(entries, dirs=()):
     return buf.getvalue()
 
 def make_deb(bin_path, goarch):
-    # 图标:优先仓库内置 web/assets(CI 可用),回退本地 build 产物
-    icon = os.path.join(ROOT, "web", "assets", "icon-512.png")
+    # 图标:优先仓库内置 assets(CI 可用),回退本地 build 产物
+    icon = os.path.join(ROOT, "assets", "icon-512.png")
     if not os.path.exists(icon):
         icon = os.path.join(ROOT, "build", "AppIcon.iconset", "icon_512x512@2x.png")
     lic = os.path.join(ROOT, "LICENSE")
@@ -62,7 +62,7 @@ def make_deb(bin_path, goarch):
     control = (f"Package: clipforge\nVersion: {VERSION}\nSection: utils\nPriority: optional\n"
                f"Architecture: {goarch}\nInstalled-Size: {os.path.getsize(bin_path) // 1024 + 900}\n"
                f"Maintainer: PlayChessClub <playchessclub@users.noreply.github.com>\n"
-               f"Homepage: https://github.com/PlayChessClub/videogenerator\n"
+               f"Homepage: https://github.com/PlayChessClub/clipforge-web\n"
                f"Depends: xdg-utils\n"
                f"Description: ClipForge AI - 本地 API 代理客户端(视频/图片/语音生成)\n"
                f" 单文件静态 Go 程序, 前端已内嵌。终端运行进命令行菜单(clipforge --help);\n"
