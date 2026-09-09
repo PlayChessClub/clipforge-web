@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ClipForge · AI 视频编辑助手</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="aurora"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">CF</div>
+      <div class="brand-text">
+        <div class="brand-title">ClipForge</div>
+        <div class="brand-subtitle">AI 视频编辑助手</div>
+      </div>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="voice">声音工坊</button>
+      <button class="tab" data-tab="tts">语音合成</button>
+      <button class="tab" data-tab="image">图片工坊</button>
+      <button class="tab" data-tab="video">视频工坊</button>
+      <button class="tab" data-tab="bill">账本</button>
+      <button class="tab" data-tab="settings">设置</button>
+    </nav>
+  </header>
+
+  <main class="content">
+
+    <!-- 声音工坊 -->
+    <section class="panel active" id="voice">
+      <h2>声音克隆</h2>
+      <div class="card">
+        <label class="field">
+          <span>音色前缀(英文,如 myvoice)</span>
+          <input type="text" id="voice-prefix" value="myvoice" placeholder="myvoice">
+        </label>
+
+        <label class="field">
+          <span>参考音频(wav / mp3 / m4a)</span>
+          <div class="file-row">
+            <button class="btn" id="voice-pick">选择音频…</button>
+            <span class="file-name" id="voice-filename">未选择</span>
+          </div>
+          <input type="file" id="voice-file" accept=".wav,.mp3,.m4a" hidden>
+        </label>
+
+        <button class="btn primary" id="voice-clone">开始克隆</button>
+        <p class="status" id="voice-status"></p>
+      </div>
+
+      <h2>已有音色</h2>
+      <div class="card">
+        <div class="row">
+          <select id="voice-list" class="select"><option>— 加载中 —</option></select>
+          <button class="btn" id="voice-refresh">刷新</button>
+        </div>
+        <p class="hint">克隆好的 voice_id 可直接在「语音合成」页使用。</p>
+      </div>
+    </section>
+
+    <!-- 语音合成 -->
+    <section class="panel" id="tts">
+      <h2>语音合成 · cosyvoice-v3.5-plus</h2>
+      <div class="card">
+        <div class="row">
+          <label class="field">
+            <span>音色(克隆音色或系统音色)</span>
+            <select id="tts-voice" class="select"><option>— 加载中 —</option></select>
+          </label>
+          <button class="btn" id="tts-refresh">刷新音色</button>
+        </div>
+
+        <label class="field">
+          <span>合成文本</span>
+          <textarea id="tts-text" rows="5" placeholder="输入要合成的文字…"></textarea>
+        </label>
+
+        <div class="row">
+          <label class="field">
+            <span>语速(<span id="tts-rate-v">1.0</span>x)</span>
+            <input type="range" id="tts-rate" min="0.5" max="2" step="0.05" value="1">
+          </label>
+          <label class="field">
+            <span>音量(<span id="tts-volume-v">50</span>)</span>
+            <input type="range" id="tts-volume" min="0" max="100" step="1" value="50">
+          </label>
+          <label class="field">
+            <span>音调(<span id="tts-pitch-v">1.0</span>)</span>
+            <input type="range" id="tts-pitch" min="0.5" max="2" step="0.05" value="1">
+          </label>
+        </div>
+
+        <button class="btn primary" id="tts-go">开始合成</button>
+        <p class="status" id="tts-status"></p>
+        <div id="tts-result" class="result"></div>
+      </div>
+    </section>
+
+    <!-- 图片工坊 -->
+    <section class="panel" id="image">
+      <h2>文生图</h2>
+      <div class="card">
+        <label class="field">
+          <span>图片描述
+            <button class="btn mini" id="image-lucky">🎲 试试手气</button>
+          </span>
+          <textarea id="image-prompt" rows="3"
+            placeholder="例:一只橘猫坐在窗台上晒太阳,温暖治愈的风格。"></textarea>
+        </label>
+
+        <div class="row">
+          <label class="field">
+            <span>模型</span>
+            <select id="image-model" class="select">
+              <option value="qwen-image-2.0">qwen-image-2.0 (¥0.20/张)</option>
+              <option value="qwen-image-2.0-pro">qwen-image-2.0-pro (¥0.50/张)</option>
+              <option value="wan2.7-image">wan2.7-image (¥0.20/张)</option>
+              <option value="wan2.7-image-pro">wan2.7-image-pro (¥0.50/张)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>尺寸</span>
+            <select id="image-size" class="select">
+              <option value="1024*1024">1024*1024</option>
+              <option value="720*1280">720*1280 (竖)</option>
+              <option value="1280*720">1280*720 (横)</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>张数</span>
+            <select id="image-count" class="select">
+              <option value="1">1 张</option>
+              <option value="2">2 张</option>
+              <option value="3">3 张</option>
+              <option value="4">4 张</option>
+            </select>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="image-extend" checked>
+            <span>智能扩写</span>
+          </label>
+        </div>
+
+        <button class="btn primary" id="image-go">生成图片</button>
+        <p class="status" id="image-status"></p>
+        <div id="image-result" class="result"></div>
+      </div>
+    </section>
+
+    <!-- 视频工坊 -->
+    <section class="panel" id="video">
+      <h2>视频生成</h2>
+      <div class="card">
+        <label class="field">
+          <span>提示词
+            <button class="btn mini" id="video-lucky">🎲 试试手气</button>
+          </span>
+          <textarea id="video-prompt" rows="4"
+            placeholder="例:一只橘猫在窗台上看雨,微风轻拂窗帘,慢镜头"></textarea>
+        </label>
+
+        <label class="field">
+          <span>模型</span>
+          <select id="video-model" class="select">
+            <option value="wan2.6-i2v">wan2.6-i2v · 图生视频</option>
+            <option value="wan2.7-i2v">wan2.7-i2v · 图生视频</option>
+            <option value="wan2.6-i2v-flash">wan2.6-i2v-flash · 图生视频·Flash</option>
+            <option value="wan2.6-t2v">wan2.6-t2v · 文生视频</option>
+            <option value="wan2.7-t2v">wan2.7-t2v · 文生视频</option>
+          </select>
+        </label>
+
+        <div id="video-image-block">
+          <label class="field">
+            <span>首帧参考图(i2v 必需)</span>
+            <div class="file-row">
+              <button class="btn" id="video-pick-image">选择图片…</button>
+              <span class="file-name" id="video-image-name">未选择</span>
+            </div>
+            <input type="file" id="video-image" accept=".png,.jpg,.jpeg,.webp" hidden>
+          </label>
+        </div>
+
+        <label class="field">
+          <span>参考音频(可选,配合音频轨)</span>
+          <div class="file-row">
+            <button class="btn" id="video-pick-audio">选择音频…</button>
+            <span class="file-name" id="video-audio-name">未选择</span>
+          </div>
+          <input type="file" id="video-audio" accept=".mp3,.wav,.m4a" hidden>
+        </label>
+
+        <div class="row">
+          <label class="field">
+            <span>分辨率</span>
+            <select id="video-resolution" class="select">
+              <option value="720P">720P</option>
+              <option value="1080P">1080P</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>时长(秒)</span>
+            <select id="video-duration" class="select">
+              <option value="5">5</option>
+              <option value="10" selected>10</option>
+              <option value="15">15</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>镜头</span>
+            <select id="video-shottype" class="select">
+              <option value="multi" selected>多镜头</option>
+              <option value="single">单镜头</option>
+            </select>
+          </label>
+          <label class="field checkbox" id="video-audio-block" hidden>
+            <input type="checkbox" id="video-with-audio" checked>
+            <span>生成音频轨(有声)</span>
+          </label>
+          <label class="field checkbox">
+            <input type="checkbox" id="video-extend" checked>
+            <span>AI 提示词增强</span>
+          </label>
+        </div>
+
+        <button class="btn primary" id="video-submit">开始生成视频</button>
+        <p class="status" id="video-status"></p>
+        <div id="video-result" class="result"></div>
+      </div>
+    </section>
+
+    <!-- 账本 -->
+    <section class="panel" id="bill">
+      <h2>生成账本</h2>
+      <div class="cards3">
+        <div class="stat"><div class="stat-num" id="sum-today">¥0.00</div><div class="stat-label">今日预估</div></div>
+        <div class="stat"><div class="stat-num" id="sum-month">¥0.00</div><div class="stat-label">本月预估</div></div>
+        <div class="stat"><div class="stat-num" id="sum-all">¥0.00</div><div class="stat-label">累计预估</div></div>
+      </div>
+      <div class="card">
+        <div class="row">
+          <button class="btn" id="bill-refresh">刷新</button>
+          <a class="btn" id="bill-export" href="/api/bill/export">导出 CSV</a>
+          <button class="btn danger" id="bill-clear">清空</button>
+        </div>
+        <div class="table-wrap">
+          <table class="table" id="bill-table">
+            <thead><tr><th>时间</th><th>操作</th><th>模型</th><th>摘要</th><th>数量</th><th>预估</th><th>任务ID</th><th>状态</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="hint">账本记录每次「确认生成」的预估明细(本地 bill.jsonl),用于核对 DashScope 实际扣费,以官方账单为准。</p>
+      </div>
+    </section>
+
+    <!-- 设置 -->
+    <section class="panel" id="settings">
+      <h2>设置</h2>
+      <div class="card">
+        <label class="field">
+          <span>DashScope API Key</span>
+          <input type="password" id="settings-key" placeholder="sk-...">
+        </label>
+        <p class="hint" id="settings-status">未配置</p>
+        <div class="row">
+          <button class="btn primary" id="settings-save">保存到本地</button>
+          <button class="btn danger" id="settings-clear">清除</button>
+        </div>
+        <p class="hint">
+          存储路径:&lt;系统用户配置目录&gt;/ClipForge/settings.yml,明文,请勿分享。
+        </p>
+      </div>
+
+      <h2>价目表(华北2北京 · 按量付费,仅供参考)</h2>
+      <div class="card" id="price-list"></div>
+    </section>
+
+  </main>
+
+  <!-- 费用确认弹窗 -->
+  <div class="overlay" id="confirm-overlay" hidden>
+    <div class="confirm">
+      <h3 id="confirm-title">确认生成</h3>
+      <p class="confirm-amount" id="confirm-amount"></p>
+      <p class="hint" id="confirm-detail"></p>
+      <div class="row">
+        <button class="btn" id="confirm-cancel">取消</button>
+        <button class="btn primary" id="confirm-ok">继续生成</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    ClipForge v3.2.2 · DashScope cosyvoice-v3.5-plus + wan2.x + qwen-image-2.0
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
