@@ -1,0 +1,47 @@
+name: build-web
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux-build:
+    name: Linux 版 (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: amd64
+          - os: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 装 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.23.x
+      - name: 编译(静态,CLI+浏览器,无 CGO)
+        shell: bash
+        run: |
+          python3 build-pkgs.py --only linux-${{ matrix.arch }} --deb
+          ls -la web/release/
+      - name: 上传 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: clipforge-linux-${{ matrix.arch }}
+          path: |
+            web/release/clipforge-linux-${{ matrix.arch }}.zip
+            web/release/clipforge_*.deb
+          if-no-files-found: error
+          retention-days: 14
