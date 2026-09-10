@@ -598,6 +598,59 @@ func main() {
 		dashScopeProxy(w, r, "/services/aigc/multimodal-generation/generation")
 	})
 
+	// 「试试手气 Pro」主题种子(供前端下拉,避免与 Go 词库两处维护)
+	mux.HandleFunc("/api/lucky/themes", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(promptSeeds)
+	})
+
+	// 「试试手气 Pro」预估:纯本地计算,不调 API、不计费
+	mux.HandleFunc("/api/lucky/plan", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			return
+		}
+		var body struct {
+			Kind    string `json:"kind"`
+			Purpose string `json:"purpose"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+		kind := normalizeKind(body.Kind)
+
+		texts := plannedTexts(kind, body.Purpose)
+		embedTokens := estimateEmbeddingTokens(texts)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"kind":        kind,
+			"seed":        effectiveSeed(kind, body.Purpose),
+			"candidates":  len(texts),
+			"embedTokens": embedTokens,
+			"estimate":    estimateProTotal(kind, embedTokens, maxGenTokens[kind]),
+		})
+	})
+
+	// 「试试手气 Pro」两阶段执行(向量选句 + qwen-plus 扩写),失败自动降级为普通随机
+	mux.HandleFunc("/api/lucky/pro", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+			return
+		}
+		key := getAPIKey()
+		if key == "" {
+			http.Error(w, `{"error":"未设置 API Key,请先在设置页填入"}`, http.StatusUnauthorized)
+			return
+		}
+		var body struct {
+			Kind    string `json:"kind"`
+			Purpose string `json:"purpose"`
+		}
+		json.NewDecoder(r.Body).Decode(&body)
+
+		res := runLuckyPro(key, normalizeKind(body.Kind), body.Purpose)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(res)
+	})
+
 	// 账单
 	mux.HandleFunc("/api/bill", handleBill)
 	mux.HandleFunc("/api/bill/export", handleBillExport)

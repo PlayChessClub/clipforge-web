@@ -1042,29 +1042,10 @@ func truncate(s string, n int) string {
 	return string(r[:n]) + "…"
 }
 
-var luckyBanks = map[string][]string{
-	"video": {
-		"一只毛茸茸的小猫戴着宇航员头盔,漂浮在失重的空间站里,慢镜头,柔和灯光。",
-		"雨夜霓虹都市,一名撑红伞的女子走过湿漉漉的街道,倒影斑斓,赛博朋克风格。",
-		"一只机械蝴蝶停在一朵盛开的金属花上,特写微距,齿轮转动,蒸汽朋克。",
-		"雪山之巅,登山者插下旗帜,风吹雪雾,逆光剪影,史诗感构图。",
-		"热闹的夜市摊档,铁板烧师傅翻炒食材,火焰腾起,升格慢镜头。",
-	},
-	"image": {
-		"一只戴墨镜的柯基犬坐在海滩上,身边放着椰子,阳光明媚,插画风格。",
-		"未来主义摩天楼群,悬浮列车穿梭,紫色与青色霓虹,赛博朋克城市。",
-		"水彩画,宁静的江南水乡,白墙黛瓦,小桥流水,清晨薄雾。",
-		"一只发光的水母在深海中漂浮,蓝色荧光,神秘幽深。",
-		"冬日雪景,红色小木屋烟囱冒烟,松树挂雪,温馨童话感。",
-	},
-}
-
+// luckyPrompt 免费「试试手气」：随机取一条整句。
+// 词库统一在 promptbank.go（与「试试手气 Pro」共用同一份语料，避免两处维护）。
 func luckyPrompt(kind string) string {
-	bank := luckyBanks[kind]
-	if len(bank) == 0 {
-		return ""
-	}
-	return bank[time.Now().UnixNano()%int64(len(bank))]
+	return randomPrompt(kind)
 }
 
 func printUsage() {

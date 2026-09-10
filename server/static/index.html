@@ -82,6 +82,17 @@
           <textarea id="tts-text" rows="5" placeholder="输入要合成的文字…"></textarea>
         </label>
 
+        <div class="lucky-box" data-lucky-kind="audio">
+          <div class="lucky-row">
+            <input type="text" data-lucky="purpose" placeholder="目的 / 关键词(可留空)">
+            <select class="select" data-lucky="theme"><option value="">自动(随机主题)</option></select>
+          </div>
+          <div class="lucky-actions">
+            <button class="btn" data-lucky="free">🎲 试试手气</button>
+            <button class="btn" data-lucky="go">✨ 试试手气 Pro</button>
+          </div>
+        </div>
+
         <div class="row">
           <label class="field">
             <span>语速(<span id="tts-rate-v">1.0</span>x)</span>
@@ -108,12 +119,21 @@
       <h2>文生图</h2>
       <div class="card">
         <label class="field">
-          <span>图片描述
-            <button class="btn mini" id="image-lucky">🎲 试试手气</button>
-          </span>
+          <span>图片描述</span>
           <textarea id="image-prompt" rows="3"
             placeholder="例:一只橘猫坐在窗台上晒太阳,温暖治愈的风格。"></textarea>
         </label>
+
+        <div class="lucky-box" data-lucky-kind="image">
+          <div class="lucky-row">
+            <input type="text" data-lucky="purpose" placeholder="目的 / 关键词(可留空)">
+            <select class="select" data-lucky="theme"><option value="">自动(随机主题)</option></select>
+          </div>
+          <div class="lucky-actions">
+            <button class="btn" data-lucky="free">🎲 试试手气</button>
+            <button class="btn" data-lucky="go">✨ 试试手气 Pro</button>
+          </div>
+        </div>
 
         <div class="row">
           <label class="field">
@@ -159,12 +179,21 @@
       <h2>视频生成</h2>
       <div class="card">
         <label class="field">
-          <span>提示词
-            <button class="btn mini" id="video-lucky">🎲 试试手气</button>
-          </span>
+          <span>提示词</span>
           <textarea id="video-prompt" rows="4"
             placeholder="例:一只橘猫在窗台上看雨,微风轻拂窗帘,慢镜头"></textarea>
         </label>
+
+        <div class="lucky-box" data-lucky-kind="video">
+          <div class="lucky-row">
+            <input type="text" data-lucky="purpose" placeholder="目的 / 关键词(可留空)">
+            <select class="select" data-lucky="theme"><option value="">自动(随机主题)</option></select>
+          </div>
+          <div class="lucky-actions">
+            <button class="btn" data-lucky="free">🎲 试试手气</button>
+            <button class="btn" data-lucky="go">✨ 试试手气 Pro</button>
+          </div>
+        </div>
 
         <label class="field">
           <span>模型</span>

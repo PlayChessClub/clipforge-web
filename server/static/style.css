@@ -240,6 +240,33 @@ a.btn { display: inline-block; text-decoration: none; }
 .confirm-amount { font-size: 20px; font-weight: 600; color: var(--warn); margin-bottom: 8px; }
 .confirm .row { margin-top: 18px; justify-content: flex-end; }
 
+/* ---------- 试试手气 / 试试手气 Pro(与 Mac 版 LuckyPromptButtons 同布局) ---------- */
+.lucky-box {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(124, 58, 237, 0.10), rgba(6, 182, 212, 0.05));
+}
+.lucky-row { display: flex; gap: 8px; align-items: center; }
+.lucky-row input[type="text"] {
+  flex: 1 1 auto; min-width: 0;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.lucky-row input[type="text"]:focus { border-color: var(--primary); }
+.lucky-row .select { flex: 0 1 auto; width: auto; max-width: 44%; }
+.lucky-actions { display: flex; gap: 8px; margin-top: 8px; }
+.lucky-actions .btn { flex: 1 1 0; }
+
+
 /* ============================================================
    移动端自适应(手机浏览器 / Android WebView 壳)
    断点 700px:顶栏压缩为品牌条,顶部标签栏转为底部导航,
@@ -343,6 +370,14 @@ a.btn { display: inline-block; text-decoration: none; }
     flex: 1 1 auto; min-width: 0;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
+
+  /* ---------- 试试手气 / Pro:单列堆叠 ---------- */
+  .lucky-box { padding: 10px; }
+  .lucky-row { flex-wrap: wrap; gap: 8px; }
+  .lucky-row input[type="text"] { flex: 1 1 100%; font-size: 16px; padding: 12px; border-radius: 10px; }
+  .lucky-row .select { flex: 1 1 100%; max-width: none; }
+  .lucky-actions { gap: 8px; }
+  .lucky-actions .btn { min-height: 44px; }
 
   /* ---------- 生成结果 ---------- */
   .result { margin-top: 12px; }

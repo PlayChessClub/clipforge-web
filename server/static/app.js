@@ -172,10 +172,123 @@ const PROMPT_BANK = {
     '极简主义海报，一只红色气球飘向天空，大量留白，高级灰背景。',
     '冬日雪景，红色小木屋烟囱冒烟，松树挂雪，温馨童话感。',
   ],
+  audio: [
+    '夜色渐深，城市慢慢安静下来。远处的灯火一盏盏熄灭，只剩下风穿过树梢的声音。',
+    '欢迎收听今天的节目。我们来聊一个有趣的话题：为什么有些人，天生就更乐观一点？',
+    '先把米淘洗干净，加一小撮盐，再滴两滴油，这样煮出来的米饭粒粒分明，还带着光泽。',
+    '风从海面上吹来，带着一点咸味。她站在礁石上，看着远处的灯塔，一闪，一闪。',
+    '各位旅客您好，本次列车即将到达终点站，请您带好随身物品，准备下车。',
+    '小时候，夏天的傍晚总是很长。蝉鸣、蒲扇、冰镇西瓜，还有外婆讲不完的故事。',
+    '在这个快节奏的时代，能安静地读完一本书，已经变成了一种小小的奢侈。',
+    '雨停了。空气里有泥土的味道，孩子们跑出家门，踩着水洼，笑声传得很远很远。',
+    '亲爱的朋友，愿你今天遇到的每一件小事，都刚好合你的心意。晚安，好梦。',
+    '他推开门，屋里的灯还亮着。桌上留着一张纸条：饭在锅里，记得热一热再吃。',
+  ],
   random: (arr) => arr[Math.floor(Math.random() * arr.length)],
 };
-$('#video-lucky').addEventListener('click', () => { $('#video-prompt').value = PROMPT_BANK.random(PROMPT_BANK.video); });
-$('#image-lucky').addEventListener('click', () => { $('#image-prompt').value = PROMPT_BANK.random(PROMPT_BANK.image); });
+// 「试试手气」与「试试手气 Pro」共用一个 lucky-box（与 Mac 版 LuckyPromptButtons 同布局），
+// 事件绑定见本节末尾的 $$('.lucky-box') 循环。
+
+// ==================== 试试手气 Pro ====================
+// 两阶段：向量选句(qwen3.7-text-embedding-flash) + 扩写(qwen-plus) → ~500 字新提示词
+// 词库与计费口径全在服务端(promptbank.go)，前端只负责确认与回填。
+const LUCKY_PRO = {
+  image: { target: '#image-prompt', status: '#image-status' },
+  video: { target: '#video-prompt', status: '#video-status' },
+  audio: { target: '#tts-text',     status: '#tts-status' },
+};
+
+async function runLuckyPro(block) {
+  const kind = block.dataset.luckyKind;
+  const cfg = LUCKY_PRO[kind];
+  if (!cfg) return;
+
+  const purposeEl = block.querySelector('[data-lucky="purpose"]');
+  const themeEl = block.querySelector('[data-lucky="theme"]');
+  const goEl = block.querySelector('[data-lucky="go"]');
+  const target = $(cfg.target), status = $(cfg.status);
+  // 与 Mac 版一致：选了主题则主题优先，否则用输入框里的关键词
+  const purpose = (themeEl.value || purposeEl.value).trim();
+
+  const label = goEl.textContent;
+  goEl.disabled = true;
+  try {
+    goEl.textContent = '预估中…';
+    const plan = await api('POST', '/api/lucky/plan', { kind, purpose });
+    goEl.textContent = label;
+
+    const ok = await confirmCost('试试手气 Pro', {
+      amount: plan.estimate.amount,
+      detail: plan.estimate.detail,
+    });
+    if (!ok) return;
+
+    goEl.disabled = true;
+    goEl.textContent = '生成中…';
+    setStatus(status, `阶段 1/2 向量选句…(目的:${plan.seed})`, 'warn');
+
+    const r = await api('POST', '/api/lucky/pro', { kind, purpose });
+    target.value = r.prompt;
+
+    if (r.usedPro) {
+      addBill({
+        action: '试试手气 Pro',
+        model: 'qwen-plus+qwen3.7-text-embedding-flash',
+        summary: r.prompt.slice(0, 60),
+        unitName: 'token',
+        unitCount: r.totalTokens,
+        tokenMin: r.estimate.tokenMin,
+        tokenMax: r.estimate.tokenMax,
+        amountText: r.estimate.amount,
+        detail: `向量选句 ${r.embedTokens} + 扩写 ${r.genTokens} token`,
+        status: '成功',
+      });
+      setStatus(status,
+        `✅ 已扩写 ~${[...r.prompt].length} 字 · ${r.totalTokens} token · ${r.estimate.amount}`,
+        'ok');
+    } else {
+      // 服务端两阶段失败会自动降级为普通随机，且不计费
+      setStatus(status, '⚠️ Pro 调用失败，已改用普通随机(未计费)', 'warn');
+    }
+  } catch (e) {
+    setStatus(status, '❌ ' + e.message, 'err');
+  } finally {
+    goEl.disabled = false;
+    goEl.textContent = label;
+  }
+}
+
+// 「试试手气」(免费)：从本地整句词库随机取一条，不联网、不计费
+function runLuckyFree(block) {
+  const cfg = LUCKY_PRO[block.dataset.luckyKind];
+  if (!cfg) return;
+  const bank = PROMPT_BANK[block.dataset.luckyKind] || [];
+  $(cfg.target).value = PROMPT_BANK.random(bank);
+  setStatus($(cfg.status), '🎲 已随机填入一条词库整句(免费)', '');
+}
+
+$$('.lucky-box').forEach(block => {
+  block.querySelector('[data-lucky="free"]')
+       .addEventListener('click', () => runLuckyFree(block));
+  block.querySelector('[data-lucky="go"]')
+       .addEventListener('click', () => runLuckyPro(block));
+});
+
+// 主题下拉从服务端拉取(避免与 Go 词库两处维护)
+(async () => {
+  try {
+    const themes = await api('GET', '/api/lucky/themes');
+    $$('.lucky-box').forEach(block => {
+      const sel = block.querySelector('[data-lucky="theme"]');
+      (themes[block.dataset.luckyKind] || []).forEach(s => {
+        const o = document.createElement('option');
+        o.value = s;
+        o.textContent = s;
+        sel.appendChild(o);
+      });
+    });
+  } catch (e) { console.warn('主题列表加载失败', e); }
+})();
 
 // ==================== 设置页 ====================
 async function loadSettings() {
