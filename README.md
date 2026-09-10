@@ -1,6 +1,6 @@
 # ClipForge Web (Go + HTML5)
 
-> **v3.3.0** —— 基于阿里云百炼（DashScope）的本地 AI 客户端，支持视频生成、文生图、语音合成（TTS）、声音克隆与生成账本。
+> **v3.3.1** —— 基于阿里云百炼（DashScope）的本地 AI 客户端，支持视频生成、文生图、语音合成（TTS）、声音克隆与生成账本。
 > 单文件 Go 程序，**零运行时依赖、纯静态编译**；前端（HTML/CSS/JS）已用 `go:embed` 内嵌进二进制，无需外部目录。
 > **面向 Windows（WebView2 内嵌窗口）与 Linux（CLI + 浏览器）分发**。macOS 请用原生 SwiftUI 版（仓库 [videogenerator](https://github.com/PlayChessClub/videogenerator) 的 `build.sh` 产出 `ClipForge.app`）；本 Web 版在 darwin 上**仅作本地开发调试**，非官方支持平台。
 > 四条平行发布线：**本仓库**（Web：Windows / Linux）· [videogenerator](https://github.com/PlayChessClub/videogenerator)（macOS 原生，主力）· [ClipForge-ios](https://github.com/PlayChessClub/ClipForge-ios)（iOS / iPadOS）· 安卓 WebView 壳 `clipforge-android`（复用本仓库后端，本地构建，尚未建云端仓库）。
@@ -82,7 +82,7 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o
 GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o ../release/clipforge-linux-amd64   .
 ```
 
-### Release 产物一览（v3.3.0）
+### Release 产物一览（v3.3.1）
 
 | 产物 | 平台 | 形态 |
 |---|---|---|
@@ -90,8 +90,8 @@ GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o
 | `clipforge-windows-arm64.zip` | Windows ARM64 | 单文件 exe |
 | `clipforge-linux-amd64.zip` | Linux x64 | 单文件二进制 |
 | `clipforge-linux-arm64.zip` | Linux ARM64 | 单文件二进制 |
-| `clipforge_3.3.0_amd64.deb` | Linux x64 (Debian/Ubuntu) | 含 `.desktop`、图标、版权 |
-| `clipforge_3.3.0_arm64.deb` | Linux ARM64 (Debian/Ubuntu) | 含 `.desktop`、图标、版权 |
+| `clipforge_3.3.1_amd64.deb` | Linux x64 (Debian/Ubuntu) | 含 `.desktop`、图标、版权 |
+| `clipforge_3.3.1_arm64.deb` | Linux ARM64 (Debian/Ubuntu) | 含 `.desktop`、图标、版权 |
 
 > CI（`.github/workflows/build-web.yml`）在打 `v*` tag 时自动对 Linux amd64/arm64 构建 zip + deb 并上传 artifact。
 
@@ -129,12 +129,18 @@ clipforge -h        显示用法
 
 ## 6. 配置与数据
 
-API Key 与账本为**明文**存储在本机用户配置目录，**自行保管、切勿分享或提交到仓库**。
+**API Key 自 v3.3.1 起加密存储**（AES-256-GCM）；账本仍为明文。均在本机用户配置目录，自行保管、切勿分享或提交到仓库。
 
 | 文件 | 路径（各系统 `UserConfigDir` 下 `ClipForge/`） |
 |---|---|
-| 设置 `settings.yml`（含 `apiKey`） | Windows `%APPDATA%\ClipForge\settings.yml` · Linux `~/.config/ClipForge/settings.yml` · macOS `~/Library/Application Support/ClipForge/settings.yml`（仅调试用） |
-| 账本 `bill.jsonl`（JSONL，追加式） | 同上目录 |
+| 设置 `settings.yml`（含 API Key **密文** `apiKeyEnc`） | Windows `%APPDATA%\ClipForge\settings.yml` · Linux `~/.config/ClipForge/settings.yml` · macOS `~/Library/Application Support/ClipForge/settings.yml`（仅调试用） |
+| 主密钥 `master.key`（32 字节，权限 `0600`） | 同上目录 |
+| 账本 `bill.jsonl`（JSONL，追加式，明文） | 同上目录 |
+
+加密方式：主密钥由 `crypto/rand` 生成并单独存 `master.key`，API Key 用 AES-256-GCM 加密后写回 `settings.yml`（`version: 2` + `apiKeyEnc`）。**不依赖任何系统钥匙串**（Keychain / DPAPI / Secret Service），四端同一套实现。
+
+- 旧版明文 `settings.yml` 首次启动**自动迁移**为密文，无需手动操作。
+- `master.key` 是解密的唯一凭据，**删除后需重新填写 API Key**；请勿当作缓存清理，也不要同步到别处。
 
 ---
 
