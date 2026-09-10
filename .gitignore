@@ -3,3 +3,7 @@ release/
 
 # 交叉编译中间体(build-pkgs.py 在仓库根生成)
 /clipforge-*
+
+# 本地密钥(含主密钥与密文配置文件,绝不入库)
+master.key
+settings.yml

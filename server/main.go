@@ -70,24 +70,63 @@ func loadConfig() Config {
 	if err != nil {
 		return c
 	}
-	// 简单 yml 解析:只取 apiKey: 后面的值
-	for _, line := range strings.Split(string(data), "\n") {
+	s := string(data)
+
+	// v2 密文格式：version: 2 + apiKeyEnc
+	if strings.Contains(s, "apiKeyEnc:") {
+		key, err := ensureMasterKey()
+		if err != nil {
+			return c
+		}
+		for _, line := range strings.Split(s, "\n") {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "apiKeyEnc:") {
+				v := strings.TrimSpace(strings.TrimPrefix(line, "apiKeyEnc:"))
+				v = strings.Trim(v, `"'`)
+				if v == "" {
+					continue
+				}
+				if pt, err := decryptSecret(v, key); err == nil {
+					c.APIKey = pt
+				}
+			}
+		}
+		return c
+	}
+
+	// v1 明文（旧版）：读出来，稍后自动迁移加密
+	for _, line := range strings.Split(s, "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "apiKey:") {
 			v := strings.TrimSpace(strings.TrimPrefix(line, "apiKey:"))
-			v = strings.Trim(v, `"'`)
-			c.APIKey = v
+			c.APIKey = strings.Trim(v, `"'`)
 		}
+	}
+	// 一次迁移：非空即加密重写（内部会生成 master.key）
+	if c.APIKey != "" {
+		_ = saveConfig(c)
 	}
 	return c
 }
 
 func saveConfig(c Config) error {
 	dir := filepath.Dir(configPath())
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
-	content := fmt.Sprintf("# ClipForge 设置(明文,自行保管不要提交到代码仓库)\napiKey: %q\n", c.APIKey)
+	// 清除 key：写空 v2 文件（不生成 master.key）
+	if c.APIKey == "" {
+		return os.WriteFile(configPath(), []byte("version: 2\napiKeyEnc: \"\"\n"), 0600)
+	}
+	key, err := ensureMasterKey()
+	if err != nil {
+		return err
+	}
+	enc, err := encryptSecret(c.APIKey, key)
+	if err != nil {
+		return err
+	}
+	content := fmt.Sprintf("version: 2\napiKeyEnc: %q\n", enc)
 	return os.WriteFile(configPath(), []byte(content), 0600)
 }
 
