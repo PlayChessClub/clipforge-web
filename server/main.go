@@ -651,6 +651,9 @@ func main() {
 		json.NewEncoder(w).Encode(res)
 	})
 
+	// 网络自检(排查出网 502 用)
+	mux.HandleFunc("/api/diag", handleDiag)
+
 	// 账单
 	mux.HandleFunc("/api/bill", handleBill)
 	mux.HandleFunc("/api/bill/export", handleBillExport)
