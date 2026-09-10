@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  应用主题:让状态栏 / 导航栏 / 窗口底色与 Web UI 的深色玻璃风格一致,
+  避免启动瞬间白屏闪烁,以及深色界面配浅色状态栏的割裂感。
+  色值 #0b0b14 与 static/style.css 中 :root 的背景色变量一致。
+  注意:XML 注释内不可出现连续两个短横线,故此处不写 CSS 变量名。
+-->
+<resources>
+    <style name="AppTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">#0b0b14</item>
+        <item name="android:statusBarColor">#0b0b14</item>
+        <item name="android:navigationBarColor">#0b0b14</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

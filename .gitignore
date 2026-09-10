@@ -7,3 +7,10 @@ release/
 # 本地密钥(含主密钥与密文配置文件,绝不入库)
 master.key
 settings.yml
+
+# Android 壳构建产物(android/build.sh 产出; APK 发到 Releases, 不进源码库)
+android/build/
+android/out/
+android/keystore/
+*.apk
+.DS_Store

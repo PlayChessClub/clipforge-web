@@ -3,7 +3,7 @@
 > **v3.3.1** —— 基于阿里云百炼（DashScope）的本地 AI 客户端，支持视频生成、文生图、语音合成（TTS）、声音克隆与生成账本。
 > 单文件 Go 程序，**零运行时依赖、纯静态编译**；前端（HTML/CSS/JS）已用 `go:embed` 内嵌进二进制，无需外部目录。
 > **面向 Windows（WebView2 内嵌窗口）与 Linux（CLI + 浏览器）分发**。macOS 请用原生 SwiftUI 版（仓库 [videogenerator](https://github.com/PlayChessClub/videogenerator) 的 `build.sh` 产出 `ClipForge.app`）；本 Web 版在 darwin 上**仅作本地开发调试**，非官方支持平台。
-> 四条平行发布线：**本仓库**（Web：Windows / Linux）· [videogenerator](https://github.com/PlayChessClub/videogenerator)（macOS 原生，主力）· [ClipForge-ios](https://github.com/PlayChessClub/ClipForge-ios)（iOS / iPadOS）· 安卓 WebView 壳 `clipforge-android`（复用本仓库后端，本地构建，尚未建云端仓库）。
+> 发布线：**本仓库**（Web：Windows / Linux，**并含 `android/` 安卓 WebView 壳**，复用本仓库 Go 后端）· [videogenerator](https://github.com/PlayChessClub/videogenerator)（macOS 原生，主力）· [ClipForge-ios](https://github.com/PlayChessClub/ClipForge-ios)（iOS / iPadOS）。
 
 ---
 
@@ -35,7 +35,7 @@
 | **Windows** | 单文件 `.exe` + **内嵌 WebView2 窗口**（Chromium 内核，关窗即退出） | `WebView2Loader.dll` 已内嵌，仍是单文件；若系统缺 WebView2 Runtime（极老精简系统）自动退回打开默认浏览器 |
 | **Linux** | `.deb` 安装包 / `.zip`；**桌面图标启动 → 自动开浏览器**；**终端有 TTY → 命令行菜单** | 依赖 `xdg-utils`（自动开浏览器/下载目录）；纯静态编译无 CGO |
 | **macOS** | 仅调试：运行后打开系统浏览器 `http://127.0.0.1:8731` | **非官方支持**，请用原生 `ClipForge.app` |
-| **Android** | WebView 壳 APK：内嵌本仓库 Go 后端（`libclipforge.so`），`127.0.0.1:8731` 本地通信 | 仅 `arm64-v8a`；功能与本仓库 Web UI 完全一致；源码见本地 `clipforge-android` |
+| **Android** | WebView 壳 APK：内嵌本仓库 Go 后端（`libclipforge.so`），`127.0.0.1:8731` 本地通信 | 仅 `arm64-v8a`；功能与本仓库 Web UI 完全一致；源码在本仓库 `android/`，`cd android && ./build.sh` 一条命令出 APK |
 
 ---
 
@@ -92,6 +92,9 @@ GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o
 | `clipforge-linux-arm64.zip` | Linux ARM64 | 单文件二进制 |
 | `clipforge_3.3.1_amd64.deb` | Linux x64 (Debian/Ubuntu) | 含 `.desktop`、图标、版权 |
 | `clipforge_3.3.1_arm64.deb` | Linux ARM64 (Debian/Ubuntu) | 含 `.desktop`、图标、版权 |
+| `clipforge-android-3.3.1.apk` | Android 7+ | WebView 壳 + 内嵌 Go 后端（仅 `arm64-v8a`） |
+
+> 安卓壳源码在本仓库 `android/`，构建：`cd android && ./build.sh`（版本号自动取自 `build-pkgs.py`，无需手改）。
 
 > CI（`.github/workflows/build-web.yml`）在打 `v*` tag 时自动对 Linux amd64/arm64 构建 zip + deb 并上传 artifact。
 
