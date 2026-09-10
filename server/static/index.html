@@ -2,7 +2,10 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0b0b14">
+  <meta name="format-detection" content="telephone=no">
   <title>ClipForge · AI 视频编辑助手</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -17,13 +20,14 @@
         <div class="brand-subtitle">AI 视频编辑助手</div>
       </div>
     </div>
+    <!-- 宽屏:顶部标签栏;窄屏(≤700px):自动转为底部导航(图标+短标签) -->
     <nav class="tabs">
-      <button class="tab active" data-tab="voice">声音工坊</button>
-      <button class="tab" data-tab="tts">语音合成</button>
-      <button class="tab" data-tab="image">图片工坊</button>
-      <button class="tab" data-tab="video">视频工坊</button>
-      <button class="tab" data-tab="bill">账本</button>
-      <button class="tab" data-tab="settings">设置</button>
+      <button class="tab active" data-tab="voice"    data-icon="🎙" data-short="声音"><span class="tab-full">声音工坊</span></button>
+      <button class="tab"        data-tab="tts"      data-icon="🔊" data-short="配音"><span class="tab-full">语音合成</span></button>
+      <button class="tab"        data-tab="image"    data-icon="🖼️" data-short="图片"><span class="tab-full">图片工坊</span></button>
+      <button class="tab"        data-tab="video"    data-icon="🎬" data-short="视频"><span class="tab-full">视频工坊</span></button>
+      <button class="tab"        data-tab="bill"     data-icon="📒" data-short="账本"><span class="tab-full">账本</span></button>
+      <button class="tab"        data-tab="settings" data-icon="⚙️" data-short="设置"><span class="tab-full">设置</span></button>
     </nav>
   </header>
 
