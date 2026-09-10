@@ -298,7 +298,7 @@ func dashScopePost(key, path string, payload, out any) error {
 	}
 	req.Header.Set("Authorization", "Bearer "+key)
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("user-agent", "clipforge/3.2.2")
+	req.Header.Set("user-agent", "clipforge/3.3.0")
 
 	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Do(req)

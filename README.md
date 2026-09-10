@@ -1,9 +1,9 @@
 # ClipForge Web (Go + HTML5)
 
-> **v3.2.2** —— 基于阿里云百炼（DashScope）的本地 AI 客户端，支持视频生成、文生图、语音合成（TTS）、声音克隆与生成账本。
+> **v3.3.0** —— 基于阿里云百炼（DashScope）的本地 AI 客户端，支持视频生成、文生图、语音合成（TTS）、声音克隆与生成账本。
 > 单文件 Go 程序，**零运行时依赖、纯静态编译**；前端（HTML/CSS/JS）已用 `go:embed` 内嵌进二进制，无需外部目录。
 > **面向 Windows（WebView2 内嵌窗口）与 Linux（CLI + 浏览器）分发**。macOS 请用原生 SwiftUI 版（仓库 [videogenerator](https://github.com/PlayChessClub/videogenerator) 的 `build.sh` 产出 `ClipForge.app`）；本 Web 版在 darwin 上**仅作本地开发调试**，非官方支持平台。
-> 三条平行发布线：**本仓库**（Web：Windows / Linux）· [videogenerator](https://github.com/PlayChessClub/videogenerator)（macOS 原生，主力）· [ClipForge-ios](https://github.com/PlayChessClub/ClipForge-ios)（iOS / iPadOS）。
+> 四条平行发布线：**本仓库**（Web：Windows / Linux）· [videogenerator](https://github.com/PlayChessClub/videogenerator)（macOS 原生，主力）· [ClipForge-ios](https://github.com/PlayChessClub/ClipForge-ios)（iOS / iPadOS）· 安卓 WebView 壳 `clipforge-android`（复用本仓库后端，本地构建，尚未建云端仓库）。
 
 ---
 
@@ -12,13 +12,19 @@
 | 模块 | 能力 | 后端模型 / 接口 |
 |---|---|---|
 | 声音工坊（克隆） | 上传 3–10s 清晰人声 → 克隆出 `voice_id` | `voice-enrollment` |
-| 语音合成 | 选音色 + 调节语速/音量/音调，WebSocket 全双工合成，导出 mp3 | `cosyvoice-v3.5-plus` |
-| 图片工坊 | 文生图，支持 4 个模型、3 种尺寸、1–4 张、智能扩写、🎲 试试手气 | `qwen-image-2.0(-pro)` / `wan2.7-image(-pro)` |
-| 视频工坊 | 文生视频 / 图生视频，多模型、分辨率、时长、镜头、音频轨、AI 增强、🎲 试试手气 | `wan2.6/2.7-i2v(-flash)` / `wan2.6/2.7-t2v` |
+| 语音合成 | 选音色 + 调节语速/音量/音调，WebSocket 全双工合成，导出 mp3，🎲 试试手气 / ✨ Pro | `cosyvoice-v3.5-plus` |
+| 图片工坊 | 文生图，支持 4 个模型、3 种尺寸、1–4 张、智能扩写、🎲 试试手气 / ✨ Pro | `qwen-image-2.0(-pro)` / `wan2.7-image(-pro)` |
+| 视频工坊 | 文生视频 / 图生视频，多模型、分辨率、时长、镜头、音频轨、AI 增强、🎲 试试手气 / ✨ Pro | `wan2.6/2.7-i2v(-flash)` / `wan2.6/2.7-t2v` |
 | 账本 | 每次「确认生成」的预估明细落盘，今日/本月/累计汇总，CSV 导出 | 本地 `bill.jsonl` |
 | 设置 | DashScope API Key 存本地，内置价目表 | —— |
 
 > **为什么是「本地代理」模式**：API Key 只保存在你本机，所有 DashScope 请求由本地 Go 服务在后端注入 `Authorization` 后转发。前端/CLI 永远不直接接触 Key，也不上报任何密钥。
+
+> **🎲 试试手气 / ✨ 试试手气 Pro**（图片 · 视频 · 语音三面板通用）
+> 免费版：从内置词库随机取句，零成本、不联网。
+> Pro 版：填「目的/关键词」或选主题 → 后端先用 `text-embedding` 做向量选句（挑 3 条最贴近的参考句），再交给 `qwen-plus` 扩写成完整提示词；生成前弹出费用预估确认，与账本记账口径一致。接口：`/api/lucky/plan`、`/api/lucky/pro`、`/api/lucky/themes`。
+
+> **移动端自适应**：窄屏（≤700px）下顶栏压成品牌条、标签栏变底部导航、表单单列、按钮 ≥44px、确认弹窗变底部抽屉。手机浏览器与安卓壳共用这一套，宽屏布局不受影响。
 
 ---
 
@@ -29,6 +35,7 @@
 | **Windows** | 单文件 `.exe` + **内嵌 WebView2 窗口**（Chromium 内核，关窗即退出） | `WebView2Loader.dll` 已内嵌，仍是单文件；若系统缺 WebView2 Runtime（极老精简系统）自动退回打开默认浏览器 |
 | **Linux** | `.deb` 安装包 / `.zip`；**桌面图标启动 → 自动开浏览器**；**终端有 TTY → 命令行菜单** | 依赖 `xdg-utils`（自动开浏览器/下载目录）；纯静态编译无 CGO |
 | **macOS** | 仅调试：运行后打开系统浏览器 `http://127.0.0.1:8731` | **非官方支持**，请用原生 `ClipForge.app` |
+| **Android** | WebView 壳 APK：内嵌本仓库 Go 后端（`libclipforge.so`），`127.0.0.1:8731` 本地通信 | 仅 `arm64-v8a`；功能与本仓库 Web UI 完全一致；源码见本地 `clipforge-android` |
 
 ---
 
@@ -75,7 +82,7 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o
 GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o ../release/clipforge-linux-amd64   .
 ```
 
-### Release 产物一览（v3.2.2）
+### Release 产物一览（v3.3.0）
 
 | 产物 | 平台 | 形态 |
 |---|---|---|
@@ -83,8 +90,8 @@ GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o
 | `clipforge-windows-arm64.zip` | Windows ARM64 | 单文件 exe |
 | `clipforge-linux-amd64.zip` | Linux x64 | 单文件二进制 |
 | `clipforge-linux-arm64.zip` | Linux ARM64 | 单文件二进制 |
-| `clipforge_3.2.2_amd64.deb` | Linux x64 (Debian/Ubuntu) | 含 `.desktop`、图标、版权 |
-| `clipforge_3.2.2_arm64.deb` | Linux ARM64 (Debian/Ubuntu) | 含 `.desktop`、图标、版权 |
+| `clipforge_3.3.0_amd64.deb` | Linux x64 (Debian/Ubuntu) | 含 `.desktop`、图标、版权 |
+| `clipforge_3.3.0_arm64.deb` | Linux ARM64 (Debian/Ubuntu) | 含 `.desktop`、图标、版权 |
 
 > CI（`.github/workflows/build-web.yml`）在打 `v*` tag 时自动对 Linux amd64/arm64 构建 zip + deb 并上传 artifact。
 

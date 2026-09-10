@@ -11,7 +11,7 @@ import os, sys, io, time, tarfile, zipfile, subprocess, argparse
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SERVER = os.path.join(ROOT, "server")
 REL = os.path.join(ROOT, "release")
-VERSION = os.environ.get("CF_VERSION", "3.2.2")
+VERSION = os.environ.get("CF_VERSION", "3.3.0")
 
 def sh(cmd, cwd=None, env=None):
     e = dict(os.environ, **(env or {}))

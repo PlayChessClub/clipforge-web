@@ -917,7 +917,7 @@ func runCLI(base string, attach bool) {
 	if attach {
 		fmt.Println("ℹ️ ClipForge 服务已在运行,直接连接。退出本程序不影响后台服务。")
 	} else {
-		fmt.Printf("🎬 ClipForge CLI v3.2.2(本地服务 %s)\n", base)
+		fmt.Printf("🎬 ClipForge CLI v3.3.0(本地服务 %s)\n", base)
 		fmt.Printf("   配置文件: %s\n", configPath())
 	}
 	fmt.Println("   --web 可切换回浏览器界面;--cli 强制命令行(本会话默认)")
