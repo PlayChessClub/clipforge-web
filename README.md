@@ -2,7 +2,8 @@
 
 > **v3.2.2** —— 基于阿里云百炼（DashScope）的本地 AI 客户端，支持视频生成、文生图、语音合成（TTS）、声音克隆与生成账本。
 > 单文件 Go 程序，**零运行时依赖、纯静态编译**；前端（HTML/CSS/JS）已用 `go:embed` 内嵌进二进制，无需外部目录。
-> **面向 Windows（WebView2 内嵌窗口）与 Linux（CLI + 浏览器）分发**。macOS 请用原生 SwiftUI 版（仓库 `ClipForgeAI` 的 `build.sh` 产出 `ClipForge.app`）；本 Web 版在 darwin 上**仅作本地开发调试**，非官方支持平台。
+> **面向 Windows（WebView2 内嵌窗口）与 Linux（CLI + 浏览器）分发**。macOS 请用原生 SwiftUI 版（仓库 [videogenerator](https://github.com/PlayChessClub/videogenerator) 的 `build.sh` 产出 `ClipForge.app`）；本 Web 版在 darwin 上**仅作本地开发调试**，非官方支持平台。
+> 三条平行发布线：**本仓库**（Web：Windows / Linux）· [videogenerator](https://github.com/PlayChessClub/videogenerator)（macOS 原生，主力）· [ClipForge-ios](https://github.com/PlayChessClub/ClipForge-ios)（iOS / iPadOS）。
 
 ---
 
@@ -103,7 +104,8 @@ clipforge --cli
 
 ### 窗口 / 浏览器（Web UI）
 - Windows：双击 exe，内嵌 WebView2 窗口（1280×880，居中）。
-- Linux/macOS：运行后自动打开默认浏览器访问 `http://127.0.0.1:8731`；用 `--web` 强制。
+- Linux：运行后自动打开默认浏览器访问 `http://127.0.0.1:8731`；用 `--web` 强制。
+- macOS：**非支持平台**，仅供开发调试（同样开浏览器访问）；正式使用请用原生 `ClipForge.app`。
 
 ### 端口与多实例
 固定监听 `127.0.0.1:8731`。若端口已被本应用在占用，新进程会**挂载（attach）**到已有实例并直接打开其界面，而非重复启动。
@@ -124,7 +126,7 @@ API Key 与账本为**明文**存储在本机用户配置目录，**自行保管
 
 | 文件 | 路径（各系统 `UserConfigDir` 下 `ClipForge/`） |
 |---|---|
-| 设置 `settings.yml`（含 `apiKey`） | Windows `%APPDATA%\ClipForge\settings.yml` · Linux `~/.config/ClipForge/settings.yml` · macOS `~/Library/Application Support/ClipForge/settings.yml` |
+| 设置 `settings.yml`（含 `apiKey`） | Windows `%APPDATA%\ClipForge\settings.yml` · Linux `~/.config/ClipForge/settings.yml` · macOS `~/Library/Application Support/ClipForge/settings.yml`（仅调试用） |
 | 账本 `bill.jsonl`（JSONL，追加式） | 同上目录 |
 
 ---
