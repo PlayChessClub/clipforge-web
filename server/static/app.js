@@ -296,9 +296,12 @@ async function loadSettings() {
     const c = await api('GET', '/api/config');
     const el = $('#settings-status');
     if (c.configured) {
-      el.textContent = '✓ 已配置 API Key(明文存储在本地)';
+      el.textContent = '✓ 已配置 API Key(已在本机加密存储)';
       el.className = 'hint';
     }
+    // 页脚版本由后端单一来源驱动，避免前端硬编码漂移
+    const v = $('#app-version');
+    if (v && c.version) v.textContent = 'v' + c.version;
   } catch (e) { console.warn(e); }
 }
 

@@ -43,6 +43,10 @@ const (
 	listenAddr = "127.0.0.1:8731"
 	appDir     = "ClipForge"
 	configFile = "settings.yml"
+	// appVersion 是全平台唯一的版本号来源：CLI banner、user-agent、
+	// /api/config 以及前端页脚（由 app.js 注入）都取此处。
+	// 发版时只改这一处 + build-pkgs.py 的 VERSION。
+	appVersion = "3.3.1"
 )
 
 // 内嵌静态文件子系统(static/)
@@ -564,8 +568,8 @@ func main() {
 		switch r.Method {
 		case "GET":
 			w.Header().Set("Content-Type", "application/json")
-			// 只告诉前端是否已设置,不返回 key
-			out := map[string]any{"configured": getAPIKey() != ""}
+			// 只告诉前端是否已设置,不返回 key;version 供页脚显示
+			out := map[string]any{"configured": getAPIKey() != "", "version": appVersion}
 			json.NewEncoder(w).Encode(out)
 		case "POST":
 			var body Config
