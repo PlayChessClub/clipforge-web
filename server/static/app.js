@@ -67,6 +67,20 @@ function confirmCost(title, { amount, detail }) {
 }
 
 // ==================== 费用估算(与 Mac TokenEstimator 同口径) ====================
+// 模型目录（来自百炼模型广场，价格升序；一句话优势总结）
+const VIDEO_MODELS = {
+  'wan2.6-i2v-flash': { kind: '图生视频', price: '¥0.15–0.5/秒', merits: '最省最快：无声 720P 低至 0.15/秒，智能分镜多镜头叙事' },
+  'wan2.6-t2v':       { kind: '文生视频', price: '¥0.6–1.0/秒', merits: '纯文字生成视频，无需首帧图' },
+  'wan2.6-i2v':       { kind: '图生视频', price: '¥0.6–1.0/秒', merits: '首帧图精准控制构图与角色一致性' },
+  'wan2.7-t2v':       { kind: '文生视频', price: '¥0.6–1.0/秒', merits: '新一代：画质与运动自然度更好' },
+  'wan2.7-i2v':       { kind: '图生视频', price: '¥0.6–1.0/秒', merits: '新一代：支持首尾帧过渡与视频续写' },
+};
+const TTS_MODELS = {
+  'cosyvoice-v3.5-flash': { price: '¥0.8/万字符', per10k: 0.8, merits: '实惠之选：日常配音足够，支持克隆与指令控制' },
+  'cosyvoice-v3.5-plus':  { price: '¥1.5/万字符', per10k: 1.5, merits: '当前旗舰（默认）：音质与克隆相似度最佳' },
+  'cosyvoice-v3-plus':    { price: '¥2.0/万字符', per10k: 2.0, merits: '专业场景：复刻能力更强、音质更高' },
+  'cosyvoice-v2':         { price: '¥2.0/万字符', per10k: 2.0, merits: '成熟稳定：系统预置音色最多' },
+};
 const VIDEO_RATES = { // 元/秒 [720P有声, 1080P有声, 720P无声, 1080P无声]
   'wan2.6-i2v': [0.6, 1.0, 0.6, 1.0], 'wan2.7-i2v': [0.6, 1.0, 0.6, 1.0],
   'wan2.6-t2v': [0.6, 1.0, 0.6, 1.0], 'wan2.7-t2v': [0.6, 1.0, 0.6, 1.0],
@@ -94,13 +108,14 @@ function estImage(model, n) {
   return { amount: fmtMoney(rate * n), tokens: [Math.round(token * 0.7), Math.round(token * 1.3)],
            detail: `${model} · ${n} 张 · ¥${rate}/张` };
 }
-function estTTS(text) {
+function estTTS(text, model) {
   const chars = [...text].length;
-  const amount = chars / 10000 * 1.5;
-  const token = Math.round(chars / 10000 * 15000);
+  const price = (TTS_MODELS[model] || TTS_MODELS['cosyvoice-v3.5-plus']).per10k;
+  const amount = chars / 10000 * price;
+  const token = Math.round(chars / 10000 * 15000 * price / 1.5);
   return { amount: amount >= 0.005 ? fmtMoney(amount) : '<¥0.01',
            tokens: [Math.round(token * 0.7), Math.round(token * 1.3)],
-           detail: `输入 ${chars} 字符 · ¥1.5/万字符` };
+           detail: `输入 ${chars} 字符 · ¥${price}/万字符` };
 }
 
 // ==================== 账本 ====================
@@ -299,9 +314,9 @@ async function loadSettings() {
       el.textContent = '✓ 已配置 API Key(已在本机加密存储)';
       el.className = 'hint';
     }
-    // 页脚版本由后端单一来源驱动，避免前端硬编码漂移
+    // 页脚版本由后端单一来源驱动，避免前端硬编码漂移（版本串自带 w/s 前缀，不再补 v）
     const v = $('#app-version');
-    if (v && c.version) v.textContent = 'v' + c.version;
+    if (v && c.version) v.textContent = c.version;
   } catch (e) { console.warn(e); }
 }
 
@@ -329,11 +344,11 @@ $('#settings-clear').addEventListener('click', async () => {
 // ==================== 价目表 ====================
 const PRICE = {
   video: [
+    ['wan2.6-i2v-flash', '图生视频·Flash', '无声 0.15/0.25 · 有声 0.3/0.5 元/秒'],
     ['wan2.6-t2v', '文生视频', '720P ¥0.6 · 1080P ¥1.0 元/秒'],
-    ['wan2.7-t2v', '文生视频', '720P ¥0.6 · 1080P ¥1.0 元/秒'],
     ['wan2.6-i2v', '图生视频', '720P ¥0.6 · 1080P ¥1.0 元/秒'],
-    ['wan2.7-i2v', '图生视频', '720P ¥0.6 · 1080P ¥1.0 元/秒'],
-    ['wan2.6-i2v-flash', '图生视频·Flash', '有声 0.3/0.5 · 无声 0.15/0.25 元/秒'],
+    ['wan2.7-t2v', '文生视频·新一代', '720P ¥0.6 · 1080P ¥1.0 元/秒'],
+    ['wan2.7-i2v', '图生视频·新一代', '720P ¥0.6 · 1080P ¥1.0 元/秒'],
   ],
   image: [
     ['qwen-image-2.0', '文生图', '¥0.20 元/张'],
@@ -342,7 +357,10 @@ const PRICE = {
     ['wan2.7-image-pro', '文生图', '¥0.50 元/张'],
   ],
   audio: [
-    ['cosyvoice-v3.5-plus', '语音合成', '¥1.50 元/万字符'],
+    ['cosyvoice-v3.5-flash', '语音合成·实惠', '¥0.80 元/万字符'],
+    ['cosyvoice-v3.5-plus', '语音合成·旗舰', '¥1.50 元/万字符'],
+    ['cosyvoice-v3-plus', '语音合成·专业', '¥2.00 元/万字符'],
+    ['cosyvoice-v2', '语音合成·稳定', '¥2.00 元/万字符'],
     ['voice-enrollment', '声音克隆', '随训练/合成出账'],
   ],
 };
@@ -366,6 +384,7 @@ $('#voice-file').addEventListener('change', (e) => {
 $('#voice-clone').addEventListener('click', async () => {
   if (!_cloneFile) { setStatus($('#voice-status'), '请先选择参考音频', 'warn'); return; }
   const prefix = $('#voice-prefix').value.trim() || 'myvoice';
+  const cloneModel = $('#voice-clone-model').value;
   const ok = await confirmCost('声音克隆', {
     amount: '此操作将产生费用,随出账扣除(约 ¥0.3–¥2)',
     detail: 'voice-enrollment · 费用随样本训练与首次合成出账,金额波动较大',
@@ -377,7 +396,7 @@ $('#voice-clone').addEventListener('click', async () => {
     setStatus($('#voice-status'), '已上传,提交克隆任务…', 'warn');
     const create = await api('POST', '/api/voice/create', {
       model: 'voice-enrollment',
-      input: { action: 'create_voice', target_model: 'cosyvoice-v3.5-plus', prefix, url: up.resource }
+      input: { action: 'create_voice', target_model: cloneModel, prefix, url: up.resource }
     });
     const voiceId = create.output.voice_id;
     const billId = 'clone-' + Date.now();
@@ -432,7 +451,8 @@ async function loadVoices() {
 $('#voice-refresh').addEventListener('click', loadVoices);
 
 // ==================== 语音合成(WebSocket 全双工,协议与 Mac CosyVoiceTTS 一致) ====================
-function synthTTS({ voiceId, text, rate, volume, pitch, onProgress }) {
+function synthTTS({ voiceId, text, model, rate, volume, pitch, onProgress }) {
+  const ttsModel = model || 'cosyvoice-v3.5-plus';
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(`ws://${location.host}/api/tts/ws`);
     const taskId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())).replace(/-/g, '');
@@ -460,7 +480,7 @@ function synthTTS({ voiceId, text, rate, volume, pitch, onProgress }) {
       ws.send(JSON.stringify({
         header: { action: 'run-task', task_id: taskId, streaming: 'duplex' },
         payload: {
-          model: 'cosyvoice-v3.5-plus', task_group: 'audio', task: 'tts',
+          model: ttsModel, task_group: 'audio', task: 'tts',
           function: 'SpeechSynthesizer', input: {},
           parameters: { voice: voiceId, volume, text_type: 'PlainText',
                         sample_rate: 22050, rate, format: 'mp3', pitch, seed: 0, type: 0, enable_ssml: true },
@@ -477,7 +497,7 @@ function synthTTS({ voiceId, text, rate, volume, pitch, onProgress }) {
         tick(true);
         ws.send(JSON.stringify({
           header: { action: 'continue-task', task_id: taskId, streaming: 'duplex' },
-          payload: { model: 'cosyvoice-v3.5-plus', task_group: 'audio', task: 'tts',
+          payload: { model: ttsModel, task_group: 'audio', task: 'tts',
                      function: 'SpeechSynthesizer', input: { text } },
         }));
         ws.send(JSON.stringify({
@@ -522,13 +542,14 @@ $('#tts-refresh').addEventListener('click', loadTTSVoices);
 $('#tts-go').addEventListener('click', async () => {
   const text = $('#tts-text').value.trim();
   const voiceId = $('#tts-voice').value;
+  const ttsModel = $('#tts-model').value;
   if (!text) { setStatus($('#tts-status'), '请输入合成文本', 'warn'); return; }
   if (!voiceId) { setStatus($('#tts-status'), '没有可用音色,请先克隆', 'warn'); return; }
-  const est = estTTS(text);
+  const est = estTTS(text, ttsModel);
   const ok = await confirmCost('语音合成', { amount: est.amount, detail: est.detail });
   if (!ok) return;
   const billId = 'tts-' + Date.now();
-  addBill({ id: billId, action: '语音合成', model: 'cosyvoice-v3.5-plus',
+  addBill({ id: billId, action: '语音合成', model: ttsModel,
             summary: text.slice(0, 60), unitName: '字符', unitCount: [...text].length,
             tokenMin: est.tokens[0], tokenMax: est.tokens[1],
             amountText: est.amount, detail: est.detail });
@@ -538,6 +559,7 @@ $('#tts-go').addEventListener('click', async () => {
   try {
     const blob = await synthTTS({
       voiceId, text,
+      model: ttsModel,
       rate: parseFloat($('#tts-rate').value),
       volume: parseInt($('#tts-volume').value, 10),
       pitch: parseFloat($('#tts-pitch').value),
@@ -701,9 +723,27 @@ $('#video-submit').addEventListener('click', async () => {
 });
 
 // ==================== 启动 ====================
+// 模型优势提示 + 克隆/合成模型双向同步（克隆音色与模型绑定，须一致）
+function renderMerits() {
+  const tm = $('#tts-model').value;
+  $('#tts-model-merits').textContent = TTS_MODELS[tm] ? '💡 ' + TTS_MODELS[tm].merits : '';
+  const vm = $('#video-model').value;
+  $('#video-model-merits').textContent = VIDEO_MODELS[vm] ? '💡 ' + VIDEO_MODELS[vm].merits : '';
+}
+$('#tts-model').addEventListener('change', () => {
+  $('#voice-clone-model').value = $('#tts-model').value; // 保持克隆与合成模型一致
+  renderMerits();
+});
+$('#voice-clone-model').addEventListener('change', () => {
+  $('#tts-model').value = $('#voice-clone-model').value;
+  renderMerits();
+});
+$('#video-model').addEventListener('change', renderMerits);
+
 loadSettings();
 loadVoices();
 loadTTSVoices();
 loadBill();
 renderPrice();
 $('#video-model').dispatchEvent(new Event('change')); // 初始化显隐
+renderMerits();

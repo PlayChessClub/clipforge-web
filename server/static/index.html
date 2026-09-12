@@ -38,6 +38,16 @@
       <h2>声音克隆</h2>
       <div class="card">
         <label class="field">
+          <span>克隆模型(与「语音合成」页所选模型自动保持一致)</span>
+          <select id="voice-clone-model" class="select">
+            <option value="cosyvoice-v3.5-flash">cosyvoice-v3.5-flash · ¥0.8/万字符</option>
+            <option value="cosyvoice-v3.5-plus" selected>cosyvoice-v3.5-plus · ¥1.5/万字符</option>
+            <option value="cosyvoice-v3-plus">cosyvoice-v3-plus · ¥2.0/万字符</option>
+            <option value="cosyvoice-v2">cosyvoice-v2 · ¥2.0/万字符</option>
+          </select>
+        </label>
+
+        <label class="field">
           <span>音色前缀(英文,如 myvoice)</span>
           <input type="text" id="voice-prefix" value="myvoice" placeholder="myvoice">
         </label>
@@ -67,8 +77,20 @@
 
     <!-- 语音合成 -->
     <section class="panel" id="tts">
-      <h2>语音合成 · cosyvoice-v3.5-plus</h2>
+      <h2>语音合成</h2>
       <div class="card">
+        <div class="row">
+          <label class="field">
+            <span>合成模型</span>
+            <select id="tts-model" class="select">
+              <option value="cosyvoice-v3.5-flash">cosyvoice-v3.5-flash · ¥0.8/万字符</option>
+              <option value="cosyvoice-v3.5-plus" selected>cosyvoice-v3.5-plus · ¥1.5/万字符</option>
+              <option value="cosyvoice-v3-plus">cosyvoice-v3-plus · ¥2.0/万字符</option>
+              <option value="cosyvoice-v2">cosyvoice-v2 · ¥2.0/万字符</option>
+            </select>
+          </label>
+        </div>
+        <p class="hint" id="tts-model-merits"></p>
         <div class="row">
           <label class="field">
             <span>音色(克隆音色或系统音色)</span>
@@ -198,13 +220,14 @@
         <label class="field">
           <span>模型</span>
           <select id="video-model" class="select">
-            <option value="wan2.6-i2v">wan2.6-i2v · 图生视频</option>
-            <option value="wan2.7-i2v">wan2.7-i2v · 图生视频</option>
-            <option value="wan2.6-i2v-flash">wan2.6-i2v-flash · 图生视频·Flash</option>
-            <option value="wan2.6-t2v">wan2.6-t2v · 文生视频</option>
-            <option value="wan2.7-t2v">wan2.7-t2v · 文生视频</option>
+            <option value="wan2.6-i2v-flash">wan2.6-i2v-flash · 图生视频 · ¥0.15–0.5/秒</option>
+            <option value="wan2.6-t2v">wan2.6-t2v · 文生视频 · ¥0.6–1.0/秒</option>
+            <option value="wan2.6-i2v" selected>wan2.6-i2v · 图生视频 · ¥0.6–1.0/秒</option>
+            <option value="wan2.7-t2v">wan2.7-t2v · 文生视频 · ¥0.6–1.0/秒</option>
+            <option value="wan2.7-i2v">wan2.7-i2v · 图生视频 · ¥0.6–1.0/秒</option>
           </select>
         </label>
+        <p class="hint" id="video-model-merits"></p>
 
         <div id="video-image-block">
           <label class="field">
@@ -303,7 +326,7 @@
           <button class="btn danger" id="settings-clear">清除</button>
         </div>
         <p class="hint">
-          存储路径:&lt;系统用户配置目录&gt;/ClipForge/settings.yml。API Key 自 v3.3.1 起以 AES-256-GCM 加密存放于本机(密钥在同目录 master.key),请勿分享或备份其中任一文件。
+          存储路径:&lt;系统用户配置目录&gt;/ClipForge/settings.yml。API Key 以 AES-256-GCM 加密存放于本机(密钥在同目录 master.key),请勿分享或备份其中任一文件。
         </p>
       </div>
 
@@ -327,7 +350,7 @@
   </div>
 
   <footer class="footer">
-    ClipForge <span id="app-version">v3.3.1</span> · DashScope cosyvoice-v3.5-plus + wan2.x + qwen-image-2.0
+    ClipForge <span id="app-version">w.3.2</span> · DashScope cosyvoice-v3.5 + wan2.6/2.7 + qwen-image-2.0（模型可选，见各页下拉）
   </footer>
 
   <script src="app.js"></script>

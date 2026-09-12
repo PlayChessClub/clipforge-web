@@ -1,6 +1,7 @@
 # ClipForge Web (Go + HTML5)
 
-> **v3.3.1** —— 基于阿里云百炼（DashScope）的本地 AI 客户端，支持视频生成、文生图、语音合成（TTS）、声音克隆与生成账本。
+> **w.3.2** —— 基于阿里云百炼（DashScope）的本地 AI 客户端，支持视频生成、文生图、语音合成（TTS）、声音克隆与生成账本。
+> 自 w.3.2 起启用新版本号方案 **`w<主>.<次>`**（w = web/Go 端；Mac / iOS 的 Swift 端为 `s<主>.<次>`）；语音合成与视频生成模型均可在页面下拉选择（价格升序）。
 > 单文件 Go 程序，**零运行时依赖、纯静态编译**；前端（HTML/CSS/JS）已用 `go:embed` 内嵌进二进制，无需外部目录。
 > **面向 Windows（WebView2 内嵌窗口）与 Linux（CLI + 浏览器）分发**。macOS 请用原生 SwiftUI 版（仓库 [videogenerator](https://github.com/PlayChessClub/videogenerator) 的 `build.sh` 产出 `ClipForge.app`）；本 Web 版在 darwin 上**仅作本地开发调试**，非官方支持平台。
 > 发布线：**本仓库**（Web：Windows / Linux，**并含 `android/` 安卓 WebView 壳**，复用本仓库 Go 后端）· [videogenerator](https://github.com/PlayChessClub/videogenerator)（macOS 原生，主力）· [ClipForge-ios](https://github.com/PlayChessClub/ClipForge-ios)（iOS / iPadOS）。
@@ -12,7 +13,7 @@
 | 模块 | 能力 | 后端模型 / 接口 |
 |---|---|---|
 | 声音工坊（克隆） | 上传 3–10s 清晰人声 → 克隆出 `voice_id` | `voice-enrollment` |
-| 语音合成 | 选音色 + 调节语速/音量/音调，WebSocket 全双工合成，导出 mp3，🎲 试试手气 / ✨ Pro | `cosyvoice-v3.5-plus` |
+| 语音合成 | **模型下拉可选（价格升序 + 一句话优势）** + 选音色 + 调节语速/音量/音调，WebSocket 全双工合成，导出 mp3，🎲 试试手气 / ✨ Pro | `cosyvoice-v3.5-flash` / `cosyvoice-v3.5-plus`（默认） / `cosyvoice-v3-plus` / `cosyvoice-v2` |
 | 图片工坊 | 文生图，支持 4 个模型、3 种尺寸、1–4 张、智能扩写、🎲 试试手气 / ✨ Pro | `qwen-image-2.0(-pro)` / `wan2.7-image(-pro)` |
 | 视频工坊 | 文生视频 / 图生视频，多模型、分辨率、时长、镜头、音频轨、AI 增强、🎲 试试手气 / ✨ Pro | `wan2.6/2.7-i2v(-flash)` / `wan2.6/2.7-t2v` |
 | 账本 | 每次「确认生成」的预估明细落盘，今日/本月/累计汇总，CSV 导出 | 本地 `bill.jsonl` |
@@ -82,7 +83,7 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o
 GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o ../release/clipforge-linux-amd64   .
 ```
 
-### Release 产物一览（v3.3.1）
+### Release 产物一览（w.3.2）
 
 | 产物 | 平台 | 形态 |
 |---|---|---|
@@ -90,9 +91,9 @@ GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o
 | `clipforge-windows-arm64.zip` | Windows ARM64 | 单文件 exe |
 | `clipforge-linux-amd64.zip` | Linux x64 | 单文件二进制 |
 | `clipforge-linux-arm64.zip` | Linux ARM64 | 单文件二进制 |
-| `clipforge_3.3.1_amd64.deb` | Linux x64 (Debian/Ubuntu) | 含 `.desktop`、图标、版权 |
-| `clipforge_3.3.1_arm64.deb` | Linux ARM64 (Debian/Ubuntu) | 含 `.desktop`、图标、版权 |
-| `clipforge-android-3.3.1.apk` | Android 7+ | WebView 壳 + 内嵌 Go 后端（仅 `arm64-v8a`） |
+| `clipforge_3.2_amd64.deb` | Linux x64 (Debian/Ubuntu) | 含 `.desktop`、图标、版权（deb 版本号须以数字开头，故去 w 前缀） |
+| `clipforge_3.2_arm64.deb` | Linux ARM64 (Debian/Ubuntu) | 同上 |
+| `clipforge-android-w.3.2.apk` | Android 7+ | WebView 壳 + 内嵌 Go 后端（仅 `arm64-v8a`） |
 
 > 安卓壳源码在本仓库 `android/`，构建：`cd android && ./build.sh`（版本号自动取自 `build-pkgs.py`，无需手改）。
 
@@ -185,7 +186,9 @@ clipforge -h        显示用法
 | 视频 | `wan2.6-i2v-flash` | 有声 ¥0.3（720P）/¥0.5（1080P）；无声 ¥0.15/¥0.25 **元/秒** |
 | 图片 | `qwen-image-2.0` / `wan2.7-image` | ¥0.20 / 张 |
 | 图片 | `qwen-image-2.0-pro` / `wan2.7-image-pro` | ¥0.50 / 张 |
+| 语音 | `cosyvoice-v3.5-flash` | ¥0.80 / 万字符 |
 | 语音 | `cosyvoice-v3.5-plus` | ¥1.50 / 万字符 |
+| 语音 | `cosyvoice-v3-plus` / `cosyvoice-v2` | ¥2.00 / 万字符 |
 | 克隆 | `voice-enrollment` | 随训练/首次合成出账（约 ¥0.3–¥2，波动较大） |
 
 账本中的「预估金额」按上表在本地估算，仅用于核对；最终以 DashScope 实际扣费为准。

@@ -15,9 +15,12 @@ GO="${GO_BIN:-$HOME/go-sdk/go/bin/go}"
 SERVER="${CLIPFORGE_WEB:-$(cd "$ROOT/../server" && pwd)}"
 
 # 版本号统一取自 build-pkgs.py(单一事实来源),可用 CF_VERSION 覆盖
-VERSION="${CF_VERSION:-$(sed -n 's/^VERSION = .*"\([0-9][0-9.]*\)".*/\1/p' "$ROOT/../build-pkgs.py" | head -1)}"
-[ -z "$VERSION" ] && VERSION="3.3.1"
-VERSION_CODE=$(echo "$VERSION" | awk -F. '{printf "%d", $1*10000 + $2*100 + $3}')
+# v3.2 起版本号新方案「w.x.y」带 w 前缀;versionName 用完整串,versionCode 只取数字部分
+VERSION="${CF_VERSION:-$(sed -n 's/^VERSION = .*"\([^"]*\)".*/\1/p' "$ROOT/../build-pkgs.py" | head -1)}"
+[ -z "$VERSION" ] && VERSION="w.3.2"
+NUM=$(echo "$VERSION" | sed 's/^[^0-9]*//')
+# 基准 100000 保证高于旧 3.x.y 方案(30301),老用户可直接覆盖升级
+VERSION_CODE=$(echo "$NUM" | awk -F. '{printf "%d", 100000 + $1*1000 + $2*10 + ($3==""?0:$3)}')
 
 BUILD="$ROOT/build"
 OUT="$ROOT/out"

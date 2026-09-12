@@ -46,7 +46,8 @@ const (
 	// appVersion 是全平台唯一的版本号来源：CLI banner、user-agent、
 	// /api/config 以及前端页脚（由 app.js 注入）都取此处。
 	// 发版时只改这一处 + build-pkgs.py 的 VERSION。
-	appVersion = "3.3.1"
+	// v3.2 起采用新方案「w<主.次>」：w = web/Go 端（Mac/iOS  Swift 端为 s）。
+	appVersion = "w.3.2"
 )
 
 // 内嵌静态文件子系统(static/)
