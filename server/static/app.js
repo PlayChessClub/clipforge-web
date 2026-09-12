@@ -432,11 +432,18 @@ async function loadVoices() {
 $('#voice-refresh').addEventListener('click', loadVoices);
 
 // ==================== 语音合成(WebSocket 全双工,协议与 Mac CosyVoiceTTS 一致) ====================
-function synthTTS({ voiceId, text, rate, volume, pitch }) {
+function synthTTS({ voiceId, text, rate, volume, pitch, onProgress }) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(`ws://${location.host}/api/tts/ws`);
     const taskId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())).replace(/-/g, '');
     const chunks = [];
+    let bytes = 0, phase = '连接服务…', started = 0, lastTick = 0;
+    const tick = (force) => {
+      const now = Date.now();
+      if (!force && now - lastTick < 500) return;
+      lastTick = now;
+      if (onProgress) onProgress({ phase, bytes, secs: started ? Math.round((now - started) / 100) / 10 : 0 });
+    };
     let done = false;
     const timer = setTimeout(() => finish(new Error('合成超时(120s)且未收到完整音频')), 120000);
 
@@ -449,6 +456,7 @@ function synthTTS({ voiceId, text, rate, volume, pitch }) {
     }
 
     ws.onopen = () => {
+      started = Date.now();
       ws.send(JSON.stringify({
         header: { action: 'run-task', task_id: taskId, streaming: 'duplex' },
         payload: {
@@ -460,11 +468,13 @@ function synthTTS({ voiceId, text, rate, volume, pitch }) {
       }));
     };
     ws.onmessage = (ev) => {
-      if (ev.data instanceof Blob) { chunks.push(ev.data); return; }
+      if (ev.data instanceof Blob) { chunks.push(ev.data); bytes += ev.data.size; tick(); return; }
       let j;
       try { j = JSON.parse(ev.data); } catch { return; }
       const event = j.header?.event;
       if (event === 'task-started') {
+        phase = '任务已就绪,正在合成…';
+        tick(true);
         ws.send(JSON.stringify({
           header: { action: 'continue-task', task_id: taskId, streaming: 'duplex' },
           payload: { model: 'cosyvoice-v3.5-plus', task_group: 'audio', task: 'tts',
@@ -474,8 +484,11 @@ function synthTTS({ voiceId, text, rate, volume, pitch }) {
           header: { action: 'finish-task', task_id: taskId, streaming: 'duplex' },
           payload: { input: {} },
         }));
+      } else if (event === 'result-generated') {
+        phase = '音频流返回中…'; tick();
       } else if (event === 'task-finished') {
         if (!chunks.length) return finish(new Error('合成返回空音频'));
+        tick(true);
         finish(null, new Blob(chunks, { type: 'audio/mpeg' }));
       } else if (event === 'task-failed') {
         finish(new Error(`${j.header?.error_code || ''} ${j.header?.error_message || '合成失败'}`));
@@ -519,21 +532,29 @@ $('#tts-go').addEventListener('click', async () => {
             summary: text.slice(0, 60), unitName: '字符', unitCount: [...text].length,
             tokenMin: est.tokens[0], tokenMax: est.tokens[1],
             amountText: est.amount, detail: est.detail });
-  setStatus($('#tts-status'), 'WebSocket 合成中…', 'warn');
+  setStatus($('#tts-status'), '连接服务…', 'warn');
+  const resultBox = $('#tts-result');
+  resultBox.innerHTML = '<div class="tts-progress"><div class="tts-progress-bar"></div></div>';
   try {
     const blob = await synthTTS({
       voiceId, text,
       rate: parseFloat($('#tts-rate').value),
       volume: parseInt($('#tts-volume').value, 10),
       pitch: parseFloat($('#tts-pitch').value),
+      onProgress: ({ phase, bytes, secs }) => {
+        const kb = bytes ? ` · 已收 ${(bytes / 1024).toFixed(0)} KB` : '';
+        const t = secs ? ` · ${secs.toFixed(1)}s` : '';
+        setStatus($('#tts-status'), `🔊 ${phase}${kb}${t}`, 'warn');
+      },
     });
     const url = URL.createObjectURL(blob);
-    $('#tts-result').innerHTML = `
+    resultBox.innerHTML = `
       <audio controls src="${url}"></audio>
       <a class="btn" href="${url}" download="clipforge-tts-${Date.now()}.mp3">下载 mp3 (${(blob.size / 1024).toFixed(0)} KB)</a>`;
     setStatus($('#tts-status'), '✅ 合成完成', 'ok');
     updateBill(billId, { status: '成功' });
   } catch (e) {
+    resultBox.innerHTML = '';
     setStatus($('#tts-status'), '❌ ' + e.message, 'err');
     updateBill(billId, { status: '失败' });
   }

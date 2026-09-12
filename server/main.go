@@ -181,7 +181,7 @@ func dashScopeProxy(w http.ResponseWriter, r *http.Request, path string) {
 		}
 	}
 	req.Header.Set("Authorization", "Bearer "+key)
-	req.Header.Set("user-agent", "clipforge/2.0.0")
+	req.Header.Set("user-agent", "clipforge/"+appVersion)
 	// body 里引用 oss:// 资源时,让 DashScope 自动解析(与 Mac 版行为一致)
 	if bytes.Contains(body, []byte("oss://")) {
 		req.Header.Set("X-DashScope-OssResourceResolve", "enable")
@@ -600,6 +600,8 @@ func main() {
 
 	// 视频任务提交
 	mux.HandleFunc("/api/video/submit", func(w http.ResponseWriter, r *http.Request) {
+		// DashScope 视频合成 HTTP 只支持异步调用,必须带此头,否则报 405
+		r.Header.Set("X-DashScope-Async", "enable")
 		dashScopeProxy(w, r, "/services/aigc/video-generation/video-synthesis")
 	})
 

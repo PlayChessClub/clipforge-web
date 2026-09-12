@@ -166,6 +166,21 @@ h2:first-child { margin-top: 0; }
 }
 .result a:hover { text-decoration: underline; }
 
+/* 语音合成进行中的动画进度条(不确定进度,循环扫光) */
+.tts-progress {
+  margin-top: 12px; height: 6px; border-radius: 999px;
+  background: var(--border); overflow: hidden;
+}
+.tts-progress-bar {
+  height: 100%; width: 40%; border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary-2), transparent);
+  animation: ttsSweep 1.1s ease-in-out infinite;
+}
+@keyframes ttsSweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(300%); }
+}
+
 .footer {
   text-align: center; padding: 8px;
   font-size: 11px; color: var(--text-dim);
