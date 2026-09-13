@@ -190,6 +190,8 @@ clipforge -h        显示用法
 | 语音 | `cosyvoice-v3.5-plus` | ¥1.50 / 万字符 |
 | 语音 | `cosyvoice-v3-plus` / `cosyvoice-v2` | ¥2.00 / 万字符 |
 | 克隆 | `voice-enrollment` | 随训练/首次合成出账（约 ¥0.3–¥2，波动较大） |
+| 向量（手气Pro选句） | `qwen3.7-text-embedding-flash` | ¥0.000125 / 千token |
+| 文本（手气Pro扩写） | `qwen-plus` | 输入 ¥0.00096 / 输出 ¥0.0024 每千token |
 
 账本中的「预估金额」按上表在本地估算，仅用于核对；最终以 DashScope 实际扣费为准。
 
