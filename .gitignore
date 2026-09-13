@@ -17,3 +17,6 @@ android/keystore/
 
 # GitHub 令牌本地文件（绝不入库）
 ghkey.yml
+
+# 自测中间产物
+selftest/.records.jsonl

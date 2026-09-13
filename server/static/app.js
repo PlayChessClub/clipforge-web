@@ -40,9 +40,11 @@ async function api(method, path, body, isForm) {
   return await r.text();
 }
 
-async function uploadFile(file) {
+async function uploadFile(file, model) {
   const fd = new FormData();
   fd.append('file', file);
+  // model 决定 DashScope 侧的上传目录(与 Mac 版 uploadToOSS(model:) 一致)
+  if (model) fd.append('model', model);
   return await api('POST', '/api/upload', fd, true);
 }
 
@@ -396,7 +398,7 @@ $('#voice-clone').addEventListener('click', async () => {
   if (!ok) return;
   setStatus($('#voice-status'), '正在上传音频到 OSS…', 'warn');
   try {
-    const up = await uploadFile(_cloneFile);
+    const up = await uploadFile(_cloneFile, cloneModel);
     setStatus($('#voice-status'), '已上传,提交克隆任务…', 'warn');
     const create = await api('POST', '/api/voice/create', {
       model: 'voice-enrollment',
@@ -453,6 +455,23 @@ async function loadVoices() {
   }
 }
 $('#voice-refresh').addEventListener('click', loadVoices);
+
+// 删除音色(与 Mac 版一致:action=delete_voice)
+$('#voice-delete').addEventListener('click', async () => {
+  const vid = $('#voice-list').value;
+  if (!vid || vid.startsWith('—')) { setStatus($('#voice-status'), '请先在下拉里选择要删除的音色', 'warn'); return; }
+  if (!confirm(`确定删除音色 ${vid} ?删除后不可恢复。`)) return;
+  try {
+    await api('POST', '/api/voice/delete', {
+      model: 'voice-enrollment',
+      input: { action: 'delete_voice', voice_id: vid },
+    });
+    setStatus($('#voice-status'), `✅ 已删除音色 ${vid}`, 'ok');
+    loadVoices(); loadTTSVoices();
+  } catch (e) {
+    setStatus($('#voice-status'), '❌ 删除失败: ' + e.message, 'err');
+  }
+});
 
 // ==================== 语音合成(WebSocket 全双工,协议与 Mac CosyVoiceTTS 一致) ====================
 function synthTTS({ voiceId, text, model, rate, volume, pitch, onProgress }) {
@@ -664,12 +683,12 @@ $('#video-submit').addEventListener('click', async () => {
   try {
     let imgUrl = '', audioUrl = '';
     if (_videoImage) {
-      const up = await uploadFile(_videoImage);
+      const up = await uploadFile(_videoImage, model);
       imgUrl = up.resource;
       setStatus($('#video-status'), '参考图已上传,上传参考音频…', 'warn');
     }
     if (_videoAudio) {
-      const up = await uploadFile(_videoAudio);
+      const up = await uploadFile(_videoAudio, model);
       audioUrl = up.resource;
     }
 
@@ -684,7 +703,10 @@ $('#video-submit').addEventListener('click', async () => {
         resolution: res,
         prompt_extend: $('#video-extend').checked,
         duration: dur,
-        shot_type: $('#video-shottype').value,
+        // shot_type 仅 wan2.6 系列支持，且 single 就是默认值；
+        // 与 Mac 版一致：只在「多镜头」时下发，避免 wan2.7 传该参数报错
+        ...($('#video-shottype').value === 'multi' && { shot_type: 'multi' }),
+        // audio 仅 wan2.6-i2v-flash 支持(有声/无声价格不同)，其他模型传了反而报错
         ...(isFlash() && { audio: $('#video-with-audio').checked }),
       }
     };

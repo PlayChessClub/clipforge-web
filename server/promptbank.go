@@ -292,7 +292,7 @@ func dashScopePost(key, path string, payload, out any) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest("POST", "https://dashscope.aliyuncs.com/api/v1"+path, bytes.NewReader(body))
+	req, err := http.NewRequest("POST", dashScopeBase()+path, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}

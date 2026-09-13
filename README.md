@@ -158,6 +158,7 @@ clipforge -h        显示用法
 | `/api/config` | GET / POST | 读/写 API Key（GET 只返回 `configured: true/false`，不回传 Key） |
 | `/api/voice/create` | POST | 声音克隆，创建 `voice_id`（代理 DashScope） |
 | `/api/voice/list` | POST | 音色列表 / 查询 |
+| `/api/voice/delete` | POST | 删除音色（`action=delete_voice`，与 macOS 版一致） |
 | `/api/video/submit` | POST | 视频任务提交 |
 | `/api/video/task` | GET | 视频任务查询（`?taskId=xxx`） |
 | `/api/video/download` | GET | 视频下载代理（`?url=xxx`） |
@@ -168,12 +169,17 @@ clipforge -h        显示用法
 | `/api/tts/ws` | WebSocket | CosyVoice TTS 全双工代理（服务端注入鉴权，前端不接触 Key） |
 
 ### 后端实际调用的 DashScope 接口
-- 基础：`https://dashscope.aliyuncs.com/api/v1`
-- 视频提交：`/services/aigc/video-generation/video-synthesis`
+- 基础：`https://dashscope.aliyuncs.com/api/v1`（可用环境变量 `CLIPFORGE_DASHSCOPE_BASE` 覆盖，仅供本地自测/私有网关）
+- 视频提交：`/services/aigc/video-generation/video-synthesis` —— **必须带 `X-DashScope-Async: enable`**，否则 DashScope 返回 **405**（`current user api does not support synchronous calls`）
 - 视频查询：`/tasks/{taskId}`
-- 文生图：`/services/aigc/multimodal-generation/generation`
-- 声音克隆：`/services/audio/tts/customization`
-- 文件上传：`/api/v1/uploads`（先 `get_policy` 取临时凭证，直传 OSS，再 `submit` 通知资源就绪）
+- 文生图：`/services/aigc/multimodal-generation/generation`（同步）
+- 声音克隆/查询/删除：`/services/audio/tts/customization`
+- 文件上传（**现行协议**）：
+  1. `GET /uploads?action=getPolicy&model=<模型>` 取上传凭证
+  2. `POST <upload_host>` multipart 直传 OSS（字段：`OSSAccessKeyId` / `Signature` / `policy` / `key` / `x-oss-object-acl` / `x-oss-forbid-overwrite` / `success_action_status=200` / `x-oss-content-type` + `file`）
+  3. 返回 `oss://<upload_dir>/<文件名>`，请求体里带 `oss://` 时自动加 `X-DashScope-OssResourceResolve: enable`
+
+  ⚠️ 旧实现用的是 `POST /uploads` + `{"action":"get_policy"}` 的上古协议，该协议**已下线**：调用即 405，导致「声音克隆」「上传参考图/参考音频」第一步就失败。已改为上述现行协议（并保留旧协议仅作兜底）。
 - TTS WebSocket：`wss://dashscope.aliyuncs.com/api-ws/v1/inference`
 
 ---
@@ -214,6 +220,9 @@ clipforge-web/
 │       └── app.js
 ├── assets/
 │   └── icon-512.png        # deb 桌面图标
+├── selftest/               # 逐功能自测(不需要真 Key、不产生计费)
+│   ├── mock_dashscope.py   # 本地 DashScope mock(记录并断言每个出网请求)
+│   └── run.sh              # 一键跑全部功能检查
 ├── build-pkgs.py           # 交叉编译 + zip + deb 一键脚本(产物 → release/)
 ├── .github/workflows/build-web.yml   # tag v* 时自动构建 Linux 产物
 ├── LICENSE
@@ -222,6 +231,14 @@ clipforge-web/
 
 依赖：`github.com/gorilla/websocket`（TTS WS 转发）、`github.com/jchv/go-webview2`（Windows 内嵌窗口，已内嵌 WebView2Loader）。`go 1.23`，全部 `CGO_ENABLED=0` 静态编译。
 
+### 改动后怎么验证（不需要 API Key）
+
+```bash
+cd clipforge-web && bash selftest/run.sh      # 全部功能逐项断言，末尾打印 通过/失败
+```
+
+它把服务端的 DashScope 根地址指向本地 mock（`CLIPFORGE_DASHSCOPE_BASE`），因此能验证真实发出的**方法 / URL / 请求头 / 请求体**（例如视频提交是否带 `X-DashScope-Async`、上传是否走 `GET getPolicy` + 那份 multipart 字段），并驱动完整流程（上传→提交→轮询→下载）。不联网、不计费、无需 Key。
+
 ---
 
 ## 10. 常见问题
@@ -229,6 +246,7 @@ clipforge-web/
 - **API Key 怎么填？** 打开「设置」页填入阿里云百炼（DashScope）API Key，保存到本机 `settings.yml`；CLI 下首次使用也会引导输入（不回显）。获取地址：https://bailian.console.aliyun.com/ → API-KEY 管理。
 - **视频一直转圈？** 视频为异步任务，后端会每 8s 轮询最长 30 分钟；超时仍在后台跑，可稍后到 Web 界面查看。
 - **声音克隆失败？** 参考音频需为 3–10s 清晰人声、无背景音；失败通常是音频质量不达标（返回 `UNDEPLOYED`）。
+- **报「HTTP 405」怎么办？** 405 只可能来自 DashScope，含义是「该接口不支持同步调用」。已修的两处：① 视频提交必须带 `X-DashScope-Async: enable`；② 上传参考资源必须走 **`GET /uploads?action=getPolicy`** 现行协议（旧的 `POST /uploads` + `get_policy` 已下线，调用即 405）。若你自己改过代码，先跑 `selftest/run.sh` 自查这两项。
 - **本地端口被占？** 见第 5 节「端口与多实例」——新进程会挂载到已有实例。
 - **macOS 能当正式版用吗？** 不建议；官方 macOS 走原生 SwiftUI 版。
 

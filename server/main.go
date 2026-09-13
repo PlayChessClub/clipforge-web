@@ -19,6 +19,7 @@ import (
 	"mime/multipart"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -52,6 +53,16 @@ const (
 
 // 内嵌静态文件子系统(static/)
 var embeddedStatic, _ = fs.Sub(staticFS, "static")
+
+// dashScopeBase 是 DashScope HTTP API 根地址。
+// 默认官方地址；可用 CLIPFORGE_DASHSCOPE_BASE 覆盖，
+// 便于本地对着 mock 服务做「出网请求逐字段自测」(无需真实 Key、不产生计费)。
+func dashScopeBase() string {
+	if v := strings.TrimSpace(os.Getenv("CLIPFORGE_DASHSCOPE_BASE")); v != "" {
+		return strings.TrimSuffix(v, "/")
+	}
+	return "https://dashscope.aliyuncs.com/api/v1"
+}
 
 // ============================================================
 // 配置管理(settings.yml 明文,用户自己保管)
@@ -160,6 +171,30 @@ func setAPIKey(k string) {
 // DashScope 代理
 // ============================================================
 
+// skipForwardHeaders 是不该转发给 DashScope 的请求头：
+//   - 逐跳头(hop-by-hop)与 Connection 类头：HTTP/2 传输会直接拒绝(报错而非 405)
+//   - 浏览器专有头(Origin/Referer/Cookie/Sec-*)、Accept-Encoding：
+//     前者对 DashScope 无意义，后者交给 Go 传输层自己协商(可自动解压)
+// 历史上这些头会被原样转发，是「同样的请求 Mac 能通、web 报错」的差异来源之一。
+var skipForwardHeaders = map[string]bool{
+	"host": true, "content-length": true, "connection": true, "keep-alive": true,
+	"proxy-connection": true, "proxy-authorization": true, "upgrade": true,
+	"te": true, "trailer": true, "transfer-encoding": true,
+	"accept-encoding": true, "origin": true, "referer": true, "cookie": true,
+	"accept-language": true,
+}
+
+// forwardHeaders 复制请求头：逐跳/浏览器专有头跳过，其余保持原有大小写整键复制
+func forwardHeaders(dst, src http.Header) {
+	for k, v := range src {
+		lk := strings.ToLower(k)
+		if skipForwardHeaders[lk] || strings.HasPrefix(lk, "sec-") {
+			continue
+		}
+		dst[k] = append([]string(nil), v...)
+	}
+}
+
 func dashScopeProxy(w http.ResponseWriter, r *http.Request, path string) {
 	key := getAPIKey()
 	if key == "" {
@@ -168,24 +203,18 @@ func dashScopeProxy(w http.ResponseWriter, r *http.Request, path string) {
 	}
 	body, _ := io.ReadAll(r.Body)
 	req, err := http.NewRequest(r.Method,
-		"https://dashscope.aliyuncs.com/api/v1"+path, bytes.NewReader(body))
+		dashScopeBase()+path, bytes.NewReader(body))
 	if err != nil {
 		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusInternalServerError)
 		return
 	}
-	for k, v := range r.Header {
-		if strings.EqualFold(k, "Host") || strings.EqualFold(k, "Content-Length") {
-			continue
-		}
-		for _, vv := range v {
-			req.Header.Add(k, vv)
-		}
-	}
+	forwardHeaders(req.Header, r.Header)
 	req.Header.Set("Authorization", "Bearer "+key)
 	req.Header.Set("user-agent", "clipforge/"+appVersion)
 	// body 里引用 oss:// 资源时,让 DashScope 自动解析(与 Mac 版行为一致)
+	// 注意:必须用 map 直接赋值,保证发出的头名就是 DashScope 文档里的大小写
 	if bytes.Contains(body, []byte("oss://")) {
-		req.Header.Set("X-DashScope-OssResourceResolve", "enable")
+		req.Header["X-DashScope-OssResourceResolve"] = []string{"enable"}
 	}
 
 	resp, err := http.DefaultClient.Do(req)
@@ -204,45 +233,220 @@ func dashScopeProxy(w http.ResponseWriter, r *http.Request, path string) {
 }
 
 // 上传本地文件到 DashScope OSS(给声音克隆/视频生成引用)
+//
+// 走 DashScope **现行**协议(与 Mac 版 DashScopeClient.uploadToOSS 完全一致):
+//  1) GET  /api/v1/uploads?action=getPolicy&model=<模型>  取上传凭证
+//  2) POST <upload_host>  multipart 直传 OSS
+//  3) 返回 oss://<upload_dir>/<文件名>,由 DashScope 侧按 OssResourceResolve 解析
+//
+// 旧实现用的是 POST /api/v1/uploads + {"action":"get_policy"} 的上古协议，
+// 该协议已下线 —— 调用即返回 **405 Method Not Allowed**。
+// 表现：「声音克隆」「上传参考图/参考音频」整条链路第一步就 405。
+// 保留旧协议仅作兜底(极少数渠道若仍支持可自动回退)。
 func uploadLocalFile(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
-		http.Error(w, `{"error":"method not allowed"}`, http.StatusMethodNotAllowed)
+		jsonError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
 	key := getAPIKey()
 	if key == "" {
-		http.Error(w, `{"error":"未设置 API Key"}`, http.StatusUnauthorized)
+		jsonError(w, http.StatusUnauthorized, "未设置 API Key,请先在设置页填入")
 		return
 	}
-
-	// 解析 multipart
 	if err := r.ParseMultipartForm(100 << 20); err != nil { // 100MB
-		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
+		jsonError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusBadRequest)
+		jsonError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	defer file.Close()
+	data, err := io.ReadAll(file)
+	if err != nil {
+		jsonError(w, http.StatusBadRequest, "读取文件失败: "+err.Error())
+		return
+	}
 
-	// 1) 申请策略
+	// 上传目录按「要用来做什么」的模型申请(与 Mac 版一致):
+	// 声音样本传 TTS 模型,参考图/音频传视频模型;前端没传就按扩展名猜
+	model := strings.TrimSpace(r.FormValue("model"))
+	if model == "" {
+		model = defaultUploadModel(header.Filename)
+	}
+
+	resource, err := uploadToOSS(key, model, header.Filename, data)
+	if err != nil {
+		if legacy, lerr := uploadToOSSLegacy(key, header.Filename, data); lerr == nil {
+			resource, err = legacy, nil
+		}
+	}
+	if err != nil {
+		jsonError(w, http.StatusBadGateway, err.Error())
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"resource": resource})
+}
+
+// uploadPolicy 是 getPolicy 返回的凭证字段(字段名与 Mac 版一一对应)
+type uploadPolicy struct {
+	UploadHost         string `json:"upload_host"`
+	UploadDir          string `json:"upload_dir"`
+	Policy             string `json:"policy"`
+	Signature          string `json:"signature"`
+	OSSAccessKeyID     string `json:"oss_access_key_id"`
+	OSSAcl             string `json:"x_oss_object_acl"`
+	OSSForbidOverwrite string `json:"x_oss_forbid_overwrite"`
+}
+
+// jsonError 统一的 JSON 错误响应(前端 api() 读 body.error)
+func jsonError(w http.ResponseWriter, status int, msg string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(map[string]string{"error": msg})
+}
+
+func orDefault(v, def string) string {
+	if strings.TrimSpace(v) == "" {
+		return def
+	}
+	return v
+}
+
+// mimeForName 按扩展名判 MIME(与 Mac 版 mimeFor 一致)
+func mimeForName(name string) string {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".png":
+		return "image/png"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".webp":
+		return "image/webp"
+	case ".wav":
+		return "audio/wav"
+	case ".mp3":
+		return "audio/mpeg"
+	case ".m4a":
+		return "audio/mp4"
+	case ".mp4":
+		return "video/mp4"
+	default:
+		return "application/octet-stream"
+	}
+}
+
+// defaultUploadModel 前端未传 model 时按文件类型给一个合理默认
+func defaultUploadModel(name string) string {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg":
+		return "cosyvoice-v3.5-plus"
+	default:
+		return "wan2.6-i2v"
+	}
+}
+
+// uploadToOSS 现行协议:GET 取凭证 → multipart 直传 OSS → 返回 oss:// 资源串
+func uploadToOSS(key, model, fileName string, data []byte) (string, error) {
+	u := dashScopeBase() + "/uploads?action=getPolicy&model=" + url.QueryEscape(model)
+	req, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("user-agent", "clipforge/"+appVersion)
+
+	client := &http.Client{Timeout: 5 * time.Minute}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("获取上传凭证失败: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("获取上传凭证失败: HTTP %d %s", resp.StatusCode, truncate(string(raw), 200))
+	}
+
+	var pol struct {
+		Data   uploadPolicy `json:"data"`
+		Output uploadPolicy `json:"output"`
+	}
+	if err := json.Unmarshal(raw, &pol); err != nil {
+		return "", fmt.Errorf("解析上传凭证失败: %s", truncate(string(raw), 200))
+	}
+	p := pol.Data
+	if p.UploadHost == "" {
+		p = pol.Output
+	}
+	if p.UploadHost == "" || p.Policy == "" || p.Signature == "" || p.OSSAccessKeyID == "" {
+		return "", fmt.Errorf("上传凭证字段不完整: %s", truncate(string(raw), 200))
+	}
+
+	ossKey := fileName
+	if d := strings.TrimSpace(p.UploadDir); d != "" {
+		ossKey = strings.TrimSuffix(d, "/") + "/" + fileName
+	}
+	mime := mimeForName(fileName)
+
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	for _, f := range [][2]string{
+		{"OSSAccessKeyId", p.OSSAccessKeyID},
+		{"Signature", p.Signature},
+		{"policy", p.Policy},
+		{"key", ossKey},
+		{"x-oss-object-acl", orDefault(p.OSSAcl, "private")},
+		{"x-oss-forbid-overwrite", orDefault(p.OSSForbidOverwrite, "true")},
+		{"success_action_status", "200"},
+		{"x-oss-content-type", mime},
+	} {
+		_ = mw.WriteField(f[0], f[1])
+	}
+	fw, err := mw.CreateFormFile("file", fileName)
+	if err != nil {
+		return "", fmt.Errorf("构造上传体失败: %w", err)
+	}
+	if _, err := fw.Write(data); err != nil {
+		return "", fmt.Errorf("写入上传体失败: %w", err)
+	}
+	_ = mw.Close()
+
+	oreq, err := http.NewRequest("POST", p.UploadHost, bytes.NewReader(buf.Bytes()))
+	if err != nil {
+		return "", fmt.Errorf("上传地址无效: %w", err)
+	}
+	oreq.Header.Set("Content-Type", mw.FormDataContentType())
+	oreq.Header.Set("Accept", "application/json")
+	oresp, err := client.Do(oreq)
+	if err != nil {
+		return "", fmt.Errorf("上传 OSS 失败: %w", err)
+	}
+	defer oresp.Body.Close()
+	obody, _ := io.ReadAll(oresp.Body)
+	if oresp.StatusCode < 200 || oresp.StatusCode >= 300 {
+		return "", fmt.Errorf("上传 OSS 失败: HTTP %d %s", oresp.StatusCode, truncate(string(obody), 200))
+	}
+	return "oss://" + ossKey, nil
+}
+
+// uploadToOSSLegacy 上古协议(POST /uploads + get_policy/submit),仅作兜底
+func uploadToOSSLegacy(key, fileName string, data []byte) (string, error) {
 	policyBody := strings.NewReader(`{"model":"cosyvoice-v3.5-plus","input":{"action":"get_policy"}}`)
 	policyReq, _ := http.NewRequest("POST",
-		"https://dashscope.aliyuncs.com/api/v1/uploads", policyBody)
+		dashScopeBase()+"/uploads", policyBody)
 	policyReq.Header.Set("Authorization", "Bearer "+key)
 	policyReq.Header.Set("Content-Type", "application/json")
 	policyResp, err := http.DefaultClient.Do(policyReq)
 	if err != nil {
-		http.Error(w, `{"error":"申请策略失败: `+err.Error()+`"}`, http.StatusBadGateway)
-		return
+		return "", fmt.Errorf("申请策略失败: %w", err)
 	}
 	defer policyResp.Body.Close()
 	if policyResp.StatusCode != 200 {
 		b, _ := io.ReadAll(policyResp.Body)
-		http.Error(w, fmt.Sprintf(`{"error":"申请策略失败: %s"}`, string(b)), policyResp.StatusCode)
-		return
+		return "", fmt.Errorf("申请策略失败: HTTP %d %s", policyResp.StatusCode, truncate(string(b), 200))
 	}
 	var policyData struct {
 		Output struct {
@@ -258,12 +462,13 @@ func uploadLocalFile(w http.ResponseWriter, r *http.Request) {
 		} `json:"output"`
 	}
 	if err := json.NewDecoder(policyResp.Body).Decode(&policyData); err != nil {
-		http.Error(w, `{"error":"解析策略失败"}`, http.StatusInternalServerError)
-		return
+		return "", fmt.Errorf("解析策略失败: %w", err)
 	}
 	u := policyData.Output.Upload
+	if u.Host == "" || u.Policy == "" {
+		return "", fmt.Errorf("凭证为空")
+	}
 
-	// 2) multipart 直传 OSS
 	var b bytes.Buffer
 	mw := multipart.NewWriter(&b)
 	mw.WriteField("OSSAccessKeyId", u.AccessKeyID)
@@ -275,40 +480,35 @@ func uploadLocalFile(w http.ResponseWriter, r *http.Request) {
 	mw.WriteField("key", u.OssKey)
 	mw.WriteField("x-oss-security-token", u.SecurityToken)
 	mw.WriteField("success_action_status", "True")
-	fw, _ := mw.CreateFormFile("file", header.Filename)
-	io.Copy(fw, file)
+	fw, _ := mw.CreateFormFile("file", fileName)
+	fw.Write(data)
 	mw.Close()
 
 	ossReq, _ := http.NewRequest("POST", u.Host, &b)
 	ossReq.Header.Set("Content-Type", mw.FormDataContentType())
 	ossResp, err := http.DefaultClient.Do(ossReq)
 	if err != nil {
-		http.Error(w, `{"error":"OSS 上传失败: `+err.Error()+`"}`, http.StatusBadGateway)
-		return
+		return "", fmt.Errorf("OSS 上传失败: %w", err)
 	}
 	defer ossResp.Body.Close()
 	if ossResp.StatusCode != 200 {
 		bb, _ := io.ReadAll(ossResp.Body)
-		http.Error(w, fmt.Sprintf(`{"error":"OSS 上传失败: %s"}`, string(bb)), ossResp.StatusCode)
-		return
+		return "", fmt.Errorf("OSS 上传失败: HTTP %d %s", ossResp.StatusCode, truncate(string(bb), 200))
 	}
 
-	// 3) 通知 DashScope 资源就绪
 	submitBody := fmt.Sprintf(`{"model":"cosyvoice-v3.5-plus","input":{"action":"submit","oss_key":%q}}`, u.OssKey)
 	submitReq, _ := http.NewRequest("POST",
-		"https://dashscope.aliyuncs.com/api/v1/uploads", strings.NewReader(submitBody))
+		dashScopeBase()+"/uploads", strings.NewReader(submitBody))
 	submitReq.Header.Set("Authorization", "Bearer "+key)
 	submitReq.Header.Set("Content-Type", "application/json")
 	submitResp, err := http.DefaultClient.Do(submitReq)
 	if err != nil {
-		http.Error(w, `{"error":"提交资源失败: `+err.Error()+`"}`, http.StatusBadGateway)
-		return
+		return "", fmt.Errorf("提交资源失败: %w", err)
 	}
 	defer submitResp.Body.Close()
 	if submitResp.StatusCode != 200 {
 		bb, _ := io.ReadAll(submitResp.Body)
-		http.Error(w, fmt.Sprintf(`{"error":"提交资源失败: %s"}`, string(bb)), submitResp.StatusCode)
-		return
+		return "", fmt.Errorf("提交资源失败: HTTP %d %s", submitResp.StatusCode, truncate(string(bb), 200))
 	}
 	var submitData struct {
 		Output struct {
@@ -316,9 +516,7 @@ func uploadLocalFile(w http.ResponseWriter, r *http.Request) {
 		} `json:"output"`
 	}
 	json.NewDecoder(submitResp.Body).Decode(&submitData)
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"resource": submitData.Output.Resource})
+	return submitData.Output.Resource, nil
 }
 
 // probeClipforge 探测 addr 上是否已经是本应用在服务(用于端口被占时的挂靠判断)
@@ -599,10 +797,18 @@ func main() {
 		dashScopeProxy(w, r, "/services/audio/tts/customization")
 	})
 
+	// 删除音色(与 Mac 版 deleteVoice 一致:action=delete_voice)
+	mux.HandleFunc("/api/voice/delete", func(w http.ResponseWriter, r *http.Request) {
+		dashScopeProxy(w, r, "/services/audio/tts/customization")
+	})
+
 	// 视频任务提交
 	mux.HandleFunc("/api/video/submit", func(w http.ResponseWriter, r *http.Request) {
-		// DashScope 视频合成 HTTP 只支持异步调用,必须带此头,否则报 405
-		r.Header.Set("X-DashScope-Async", "enable")
+		// DashScope 视频合成 HTTP **只支持异步调用**,必须带此头,否则报 405。
+		// 用 map 直接赋值,保证线上发出的头名大小写与文档/ Mac 版一致
+		// (Go 的 Set 会把头名规范化成 X-Dashscope-Async)。
+		r.Header["X-DashScope-Async"] = []string{"enable"}
+		r.Header["X-DashScope-OssResourceResolve"] = []string{"enable"}
 		dashScopeProxy(w, r, "/services/aigc/video-generation/video-synthesis")
 	})
 
@@ -706,6 +912,13 @@ func main() {
 
 	// CosyVoice TTS WebSocket 代理
 	mux.HandleFunc("/api/tts/ws", ttsWSProxy)
+
+	// 兜底:未注册的 /api/* 一律返回 JSON 404。
+	// 不加这条会落到静态文件服务上,POST 时被 http.FileServer 回一个 HTML 405,
+	// 极容易被误认成「DashScope 405」而带偏排查方向。
+	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+		jsonError(w, http.StatusNotFound, "unknown api: "+r.URL.Path)
+	})
 
 	srv := &http.Server{
 		Addr:              listenAddr,
