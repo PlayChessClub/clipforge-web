@@ -1,6 +1,6 @@
 # ClipForge Web (Go + HTML5)
 
-> **w.3.2** —— 基于阿里云百炼（DashScope）的本地 AI 客户端，支持视频生成、文生图、语音合成（TTS）、声音克隆与生成账本。
+> **w.3.3** —— 基于阿里云百炼（DashScope）的本地 AI 客户端，支持视频生成、文生图、语音合成（TTS）、声音克隆与生成账本。
 > 自 w.3.2 起启用新版本号方案 **`w<主>.<次>`**（w = web/Go 端；Mac / iOS 的 Swift 端为 `s<主>.<次>`）；语音合成与视频生成模型均可在页面下拉选择（价格升序）。
 > 单文件 Go 程序，**零运行时依赖、纯静态编译**；前端（HTML/CSS/JS）已用 `go:embed` 内嵌进二进制，无需外部目录。
 > **面向 Windows（WebView2 内嵌窗口）与 Linux（CLI + 浏览器）分发**。macOS 请用原生 SwiftUI 版（仓库 [videogenerator](https://github.com/PlayChessClub/videogenerator) 的 `build.sh` 产出 `ClipForge.app`）；本 Web 版在 darwin 上**仅作本地开发调试**，非官方支持平台。
@@ -83,7 +83,7 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o
 GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o ../release/clipforge-linux-amd64   .
 ```
 
-### Release 产物一览（w.3.2）
+### Release 产物一览（w.3.3）
 
 | 产物 | 平台 | 形态 |
 |---|---|---|
@@ -91,9 +91,9 @@ GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o
 | `clipforge-windows-arm64.zip` | Windows ARM64 | 单文件 exe |
 | `clipforge-linux-amd64.zip` | Linux x64 | 单文件二进制 |
 | `clipforge-linux-arm64.zip` | Linux ARM64 | 单文件二进制 |
-| `clipforge_3.2_amd64.deb` | Linux x64 (Debian/Ubuntu) | 含 `.desktop`、图标、版权（deb 版本号须以数字开头，故去 w 前缀） |
-| `clipforge_3.2_arm64.deb` | Linux ARM64 (Debian/Ubuntu) | 同上 |
-| `clipforge-android-w.3.2.apk` | Android 7+ | WebView 壳 + 内嵌 Go 后端（仅 `arm64-v8a`） |
+| `clipforge_3.3_amd64.deb` | Linux x64 (Debian/Ubuntu) | 含 `.desktop`、图标、版权（deb 版本号须以数字开头，故去 w 前缀） |
+| `clipforge_3.3_arm64.deb` | Linux ARM64 (Debian/Ubuntu) | 同上 |
+| `clipforge-android-w.3.3.apk` | Android 7+ | WebView 壳 + 内嵌 Go 后端（仅 `arm64-v8a`） |
 
 > 安卓壳源码在本仓库 `android/`，构建：`cd android && ./build.sh`（版本号自动取自 `build-pkgs.py`，无需手改）。
 

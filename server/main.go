@@ -48,7 +48,7 @@ const (
 	// /api/config 以及前端页脚（由 app.js 注入）都取此处。
 	// 发版时只改这一处 + build-pkgs.py 的 VERSION。
 	// v3.2 起采用新方案「w<主.次>」：w = web/Go 端（Mac/iOS  Swift 端为 s）。
-	appVersion = "w.3.2"
+	appVersion = "w.3.3"
 )
 
 // 内嵌静态文件子系统(static/)
