@@ -100,6 +100,21 @@ ck "未注册接口 → JSON 404" '{"error":"unknown api:' "$(req -X POST $B/api
 ck "上传 GET → JSON 405" '{"error":"method not allowed"}' "$(req $B/api/upload)"
 ck "未配置 Key → 401" '{"error":"未设置 API Key' "$(req -X POST $B/api/config -H 'Content-Type: application/json' -d '{"apiKey":""}'; req -X POST $B/api/image -H 'Content-Type: application/json' -d '{}')"
 
+echo "=== 9. 音色素材库：添加 / 列表 / 克隆 / 删除 ==="
+# 注:Section 8 末尾清过 Key,此处重新写入,否则 clone(需要 Key)会走 401 分支
+req -X POST $B/api/config -H 'Content-Type: application/json' -d '{"apiKey":"sk-selftest"}' >/dev/null
+printf 'RIFF....WAVE selftest_sample_bytes_for_clone' > "$WORK/s.wav"
+ck "添加素材返回 name" '"name":"s.wav"' "$(req -F "file=@$WORK/s.wav;filename=s.wav" "$B/api/samples/add")"
+ck "列表含 s.wav" 's.wav' "$(req "$B/api/samples/list")"
+ck "克隆返回 voice_id" 'mock-voice-new' "$(req -X POST $B/api/samples/clone -H 'Content-Type: application/json' -d '{"name":"s.wav","model":"cosyvoice-v3.5-plus","prefix":"cfst"}')"
+CV=$("$PY" -c "
+import json
+r=[json.loads(l) for l in open('$CF_MOCK_REC') if l.strip()]
+v=[x for x in r if x['kind']=='post' and 'tts/customization' in x['path'] and (x.get('body') or {}).get('input',{}).get('action')=='create_voice']
+print(v[-1]['body']['input'].get('url','') if v else 'NONE')")
+ck "克隆经 create_voice 且带 oss://" 'oss://' "$CV"
+ck "删除素材" '"ok":"true"' "$(req -X POST $B/api/samples/delete -H 'Content-Type: application/json' -d '{"name":"s.wav"}')"
+
 echo
 echo "==== 通过 $pass / 失败 $fail ===="
 [[ $fail -eq 0 ]] || exit 1

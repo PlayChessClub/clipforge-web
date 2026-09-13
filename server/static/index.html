@@ -77,6 +77,18 @@
         </div>
         <p class="hint">克隆好的 voice_id 可直接在「语音合成」页使用;删除后不可恢复。</p>
       </div>
+
+      <h2>音色素材库</h2>
+      <div class="card">
+        <p class="hint">把参考音频(wav / mp3 / m4a)放进素材库,可试听并一键「用作克隆参考」;也支持直接上传进库。素材保存在本机配置目录的 materials/ 文件夹。</p>
+        <div class="row">
+          <button class="btn" id="sample-add-btn">添加素材…</button>
+          <button class="btn" id="sample-refresh">刷新列表</button>
+          <input type="file" id="sample-file" accept=".wav,.mp3,.m4a,.aac,.flac,.ogg" hidden>
+        </div>
+        <ul class="sample-list" id="sample-list"></ul>
+        <p class="status" id="sample-status"></p>
+      </div>
     </section>
 
     <!-- 语音合成 -->
@@ -118,6 +130,11 @@
             <button class="btn" data-lucky="go">✨ 试试手气 Pro</button>
           </div>
         </div>
+
+        <label class="field">
+          <span>指令控制(可选 · 控制语气/方言,如「用四川话说」「兴奋的语气」)</span>
+          <input type="text" id="tts-instruction" placeholder="留空则正常朗读">
+        </label>
 
         <div class="row">
           <label class="field">
@@ -354,7 +371,7 @@
   </div>
 
   <footer class="footer">
-    ClipForge <span id="app-version">w.3.2</span> · DashScope cosyvoice / wan2.6–2.7 / qwen-image-2.0 · wan2.7-image（模型可选，见各页下拉）
+    ClipForge <span id="app-version">w.3.4</span> · DashScope cosyvoice / wan2.6–2.7 / qwen-image-2.0 · wan2.7-image（模型可选，见各页下拉）
   </footer>
 
   <script src="app.js"></script>

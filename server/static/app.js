@@ -473,9 +473,147 @@ $('#voice-delete').addEventListener('click', async () => {
   }
 });
 
+// ==================== 音色素材库(本地 materials/ 文件夹) ====================
+// 与 Mac 版 VoiceKit.loadSamples() 对应:列表/试听/用作克隆参考/重命名/删除/添加。
+let _sampleAudio = null; // 共享的 <audio> 用于试听
+
+function sampleRowHTML(s) {
+  const sizeKb = (s.size / 1024).toFixed(0);
+  return `
+    <li class="sample-item" data-name="${s.name}">
+      <span class="sample-name" title="${s.name}">${s.name}</span>
+      <span class="sample-size">${sizeKb} KB</span>
+      <span class="sample-acts">
+        <button class="btn sm" data-act="play">试听</button>
+        <button class="btn sm primary" data-act="clone">用作克隆参考</button>
+        <button class="btn sm" data-act="rename">重命名</button>
+        <button class="btn sm danger" data-act="del">删除</button>
+      </span>
+    </li>`;
+}
+
+async function loadSamples() {
+  try {
+    const r = await api('GET', '/api/samples/list');
+    const list = r.samples || [];
+    const el = $('#sample-list');
+    if (!list.length) {
+      el.innerHTML = '<li class="sample-empty">暂无素材。点击下方「添加素材」放入 wav / mp3 / m4a,或把文件直接丢进本机 materials/ 文件夹后点「刷新列表」。</li>';
+      return;
+    }
+    el.innerHTML = list.map(sampleRowHTML).join('');
+  } catch (e) {
+    setStatus($('#sample-status'), '加载素材库失败: ' + e.message, 'err');
+  }
+}
+
+// 试听:复用单个 <audio> 元素,点同一项在 播放/停止 间切换
+function toggleSamplePlay(name) {
+  if (!_sampleAudio) _sampleAudio = new Audio();
+  const url = `/api/samples/file?name=${encodeURIComponent(name)}`;
+  if (_sampleAudio.src.endsWith(url) && !_sampleAudio.paused) {
+    _sampleAudio.pause();
+    _sampleAudio.currentTime = 0;
+    return false; // 已停止
+  }
+  _sampleAudio.src = url;
+  _sampleAudio.play().catch(() => {});
+  return true;
+}
+
+// 克隆素材:服务端读文件 → 上传 OSS → createVoice,然后轮询状态并刷新音色下拉
+async function cloneSample(name) {
+  const model = $('#voice-clone-model').value;
+  const prefix = $('#voice-prefix').value.trim() || 'myvoice';
+  const est = '克隆参考音色(素材:' + name + ')';
+  const ok = await confirmCost('声音克隆', { amount: '随样本训练与首次合成出账', detail: `${model} · ${prefix} · ${name}` });
+  if (!ok) return;
+  setStatus($('#voice-status'), `上传素材 ${name} 到 OSS…`, 'warn');
+  try {
+    const create = await api('POST', '/api/samples/clone', { name, model, prefix });
+    const voiceId = create.voice_id;
+    addBill({ id: 'clone-' + Date.now(), action: '声音克隆', model: 'voice-enrollment',
+              summary: '素材库 ' + name, unitName: '次', unitCount: 1,
+              amountText: '随出账波动(约 ¥0.3–¥2)', detail: '素材库克隆', taskId: voiceId });
+    setStatus($('#voice-status'), `已提交 ${voiceId},开始轮询…`, 'warn');
+    const billId = 'poll-' + Date.now();
+    for (let i = 0; i < 30; i++) {
+      const q = await api('POST', '/api/voice/list', {
+        model: 'voice-enrollment',
+        input: { action: 'query_voice', voice_id: voiceId },
+      });
+      const status = q.output?.status;
+      setStatus($('#voice-status'), `轮询 #${i + 1}: status = ${status}`, 'warn');
+      if (status === 'OK') {
+        setStatus($('#voice-status'), `✅ 克隆成功:${voiceId}`, 'ok');
+        loadVoices(); loadTTSVoices();
+        return;
+      } else if (status === 'UNDEPLOYED' || status === 'FAILED') {
+        setStatus($('#voice-status'), '❌ 克隆失败(音频质量不达标)', 'err');
+        return;
+      }
+      await new Promise(r => setTimeout(r, 10000));
+    }
+    setStatus($('#voice-status'), '⏱️ 轮询超时,请稍后在音色列表查看', 'err');
+  } catch (e) {
+    setStatus($('#voice-status'), '❌ ' + e.message, 'err');
+  }
+}
+
+$('#sample-refresh').addEventListener('click', loadSamples);
+$('#sample-add-btn').addEventListener('click', () => $('#sample-file').click());
+$('#sample-file').addEventListener('change', async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const fd = new FormData();
+  fd.append('file', f);
+  setStatus($('#sample-status'), `上传 ${f.name}…`, 'warn');
+  try {
+    await api('POST', '/api/samples/add', fd, true);
+    setStatus($('#sample-status'), `✅ 已添加 ${f.name}`, 'ok');
+    e.target.value = '';
+    loadSamples();
+  } catch (err) {
+    setStatus($('#sample-status'), '❌ 添加失败: ' + err.message, 'err');
+  }
+});
+
+$('#sample-list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const li = btn.closest('.sample-item');
+  const name = li?.dataset.name;
+  if (!name) return;
+  const act = btn.dataset.act;
+  if (act === 'play') {
+    const playing = toggleSamplePlay(name);
+    btn.textContent = playing ? '停止' : '试听';
+  } else if (act === 'clone') {
+    await cloneSample(name);
+  } else if (act === 'rename') {
+    const nn = prompt('重命名为(保留扩展名):', name);
+    if (!nn || nn === name) return;
+    try {
+      await api('POST', '/api/samples/rename', { old: name, new: nn });
+      loadSamples();
+    } catch (err) {
+      setStatus($('#sample-status'), '❌ 重命名失败: ' + err.message, 'err');
+    }
+  } else if (act === 'del') {
+    if (!confirm(`确定删除素材 ${name} ?`)) return;
+    try {
+      await api('POST', '/api/samples/delete', { name });
+      loadSamples();
+    } catch (err) {
+      setStatus($('#sample-status'), '❌ 删除失败: ' + err.message, 'err');
+    }
+  }
+});
+
 // ==================== 语音合成(WebSocket 全双工,协议与 Mac CosyVoiceTTS 一致) ====================
-function synthTTS({ voiceId, text, model, rate, volume, pitch, onProgress }) {
+function synthTTS({ voiceId, text, model, rate, volume, pitch, instruction, onProgress }) {
   const ttsModel = model || 'cosyvoice-v3.5-plus';
+  const instr = (instruction || '').trim();
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(`ws://${location.host}/api/tts/ws`);
     const taskId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())).replace(/-/g, '');
@@ -500,13 +638,17 @@ function synthTTS({ voiceId, text, model, rate, volume, pitch, onProgress }) {
 
     ws.onopen = () => {
       started = Date.now();
+      const params = { voice: voiceId, volume, text_type: 'PlainText',
+                        sample_rate: 22050, rate, format: 'mp3', pitch, seed: 0, type: 0, enable_ssml: true };
+      // 指令控制(与 Mac 版 CosyVoiceTTS.instruction 一致):非空才下发,
+      // 用于控制语气/方言等,例如「用四川话说」「兴奋的语气」。
+      if (instr) params.instruction = instr;
       ws.send(JSON.stringify({
         header: { action: 'run-task', task_id: taskId, streaming: 'duplex' },
         payload: {
           model: ttsModel, task_group: 'audio', task: 'tts',
           function: 'SpeechSynthesizer', input: {},
-          parameters: { voice: voiceId, volume, text_type: 'PlainText',
-                        sample_rate: 22050, rate, format: 'mp3', pitch, seed: 0, type: 0, enable_ssml: true },
+          parameters: params,
         },
       }));
     };
@@ -586,6 +728,7 @@ $('#tts-go').addEventListener('click', async () => {
       rate: parseFloat($('#tts-rate').value),
       volume: parseInt($('#tts-volume').value, 10),
       pitch: parseFloat($('#tts-pitch').value),
+      instruction: $('#tts-instruction').value,
       onProgress: ({ phase, bytes, secs }) => {
         const kb = bytes ? ` · 已收 ${(bytes / 1024).toFixed(0)} KB` : '';
         const t = secs ? ` · ${secs.toFixed(1)}s` : '';
@@ -769,6 +912,7 @@ $('#video-model').addEventListener('change', renderMerits);
 loadSettings();
 loadVoices();
 loadTTSVoices();
+loadSamples();
 loadBill();
 renderPrice();
 $('#video-model').dispatchEvent(new Event('change')); // 初始化显隐

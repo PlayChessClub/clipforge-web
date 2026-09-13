@@ -1,6 +1,6 @@
 # ClipForge Web (Go + HTML5)
 
-> **w.3.3** —— 基于阿里云百炼（DashScope）的本地 AI 客户端，支持视频生成、文生图、语音合成（TTS）、声音克隆与生成账本。
+> **w.3.4** —— 基于阿里云百炼（DashScope）的本地 AI 客户端，支持视频生成、文生图、语音合成（TTS）、声音克隆与生成账本。
 > 自 w.3.2 起启用新版本号方案 **`w<主>.<次>`**（w = web/Go 端；Mac / iOS 的 Swift 端为 `s<主>.<次>`）；语音合成与视频生成模型均可在页面下拉选择（价格升序）。
 > 单文件 Go 程序，**零运行时依赖、纯静态编译**；前端（HTML/CSS/JS）已用 `go:embed` 内嵌进二进制，无需外部目录。
 > **面向 Windows（WebView2 内嵌窗口）与 Linux（CLI + 浏览器）分发**。macOS 请用原生 SwiftUI 版（仓库 [videogenerator](https://github.com/PlayChessClub/videogenerator) 的 `build.sh` 产出 `ClipForge.app`）；本 Web 版在 darwin 上**仅作本地开发调试**，非官方支持平台。
@@ -13,7 +13,8 @@
 | 模块 | 能力 | 后端模型 / 接口 |
 |---|---|---|
 | 声音工坊（克隆） | 上传 3–10s 清晰人声 → 克隆出 `voice_id` | `voice-enrollment` |
-| 语音合成 | **模型下拉可选（价格升序 + 一句话优势）** + 选音色 + 调节语速/音量/音调，WebSocket 全双工合成，导出 mp3，🎲 试试手气 / ✨ Pro | `cosyvoice-v3.5-flash` / `cosyvoice-v3.5-plus`（默认） / `cosyvoice-v3-plus` / `cosyvoice-v2` |
+| 音色素材库 | 把参考音频（wav/mp3/m4a…）集中管理：试听、一键「用作克隆参考」、重命名、删除，也可直接上传进库 | 本地 `materials/` 文件夹 |
+| 语音合成 | **模型下拉可选（价格升序 + 一句话优势）** + 选音色 + 调节语速/音量/音调 + **指令控制**（控制语气/方言，如「用四川话说」），WebSocket 全双工合成，导出 mp3，🎲 试试手气 / ✨ Pro | `cosyvoice-v3.5-flash` / `cosyvoice-v3.5-plus`（默认） / `cosyvoice-v3-plus` / `cosyvoice-v2` |
 | 图片工坊 | 文生图，支持 4 个模型、3 种尺寸、1–4 张、智能扩写、🎲 试试手气 / ✨ Pro | `qwen-image-2.0(-pro)` / `wan2.7-image(-pro)` |
 | 视频工坊 | 文生视频 / 图生视频，多模型、分辨率、时长、镜头、音频轨、AI 增强、🎲 试试手气 / ✨ Pro | `wan2.6/2.7-i2v(-flash)` / `wan2.6/2.7-t2v` |
 | 账本 | 每次「确认生成」的预估明细落盘，今日/本月/累计汇总，CSV 导出 | 本地 `bill.jsonl` |
@@ -83,7 +84,7 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o
 GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o ../release/clipforge-linux-amd64   .
 ```
 
-### Release 产物一览（w.3.3）
+### Release 产物一览（w.3.4）
 
 | 产物 | 平台 | 形态 |
 |---|---|---|
@@ -91,9 +92,9 @@ GOOS=linux   GOARCH=amd64 CGO_ENABLED=0 go build -mod=vendor -ldflags="-s -w" -o
 | `clipforge-windows-arm64.zip` | Windows ARM64 | 单文件 exe |
 | `clipforge-linux-amd64.zip` | Linux x64 | 单文件二进制 |
 | `clipforge-linux-arm64.zip` | Linux ARM64 | 单文件二进制 |
-| `clipforge_3.3_amd64.deb` | Linux x64 (Debian/Ubuntu) | 含 `.desktop`、图标、版权（deb 版本号须以数字开头，故去 w 前缀） |
-| `clipforge_3.3_arm64.deb` | Linux ARM64 (Debian/Ubuntu) | 同上 |
-| `clipforge-android-w.3.3.apk` | Android 7+ | WebView 壳 + 内嵌 Go 后端（仅 `arm64-v8a`） |
+| `clipforge_3.4_amd64.deb` | Linux x64 (Debian/Ubuntu) | 含 `.desktop`、图标、版权（deb 版本号须以数字开头，故去 w 前缀） |
+| `clipforge_3.4_arm64.deb` | Linux ARM64 (Debian/Ubuntu) | 同上 |
+| `clipforge-android-w.3.4.apk` | Android 7+ | WebView 壳 + 内嵌 Go 后端（仅 `arm64-v8a`） |
 
 > 安卓壳源码在本仓库 `android/`，构建：`cd android && ./build.sh`（版本号自动取自 `build-pkgs.py`，无需手改）。
 
@@ -140,6 +141,7 @@ clipforge -h        显示用法
 | 设置 `settings.yml`（含 API Key **密文** `apiKeyEnc`） | Windows `%APPDATA%\ClipForge\settings.yml` · Linux `~/.config/ClipForge/settings.yml` · macOS `~/Library/Application Support/ClipForge/settings.yml`（仅调试用） |
 | 主密钥 `master.key`（32 字节，权限 `0600`） | 同上目录 |
 | 账本 `bill.jsonl`（JSONL，追加式，明文） | 同上目录 |
+| 音色素材库 `materials/`（参考音频 wav/mp3/m4a…） | 同上目录 |
 
 加密方式：主密钥由 `crypto/rand` 生成并单独存 `master.key`，API Key 用 AES-256-GCM 加密后写回 `settings.yml`（`version: 2` + `apiKeyEnc`）。**不依赖任何系统钥匙串**（Keychain / DPAPI / Secret Service），四端同一套实现。
 
@@ -167,6 +169,12 @@ clipforge -h        显示用法
 | `/api/bill` | GET / POST / PUT / DELETE | 账本：列出 / 新增 / 回填状态 / 清空 |
 | `/api/bill/export` | GET | 导出 CSV（带 BOM，字段已转义） |
 | `/api/tts/ws` | WebSocket | CosyVoice TTS 全双工代理（服务端注入鉴权，前端不接触 Key） |
+| `/api/samples/list` | GET | 音色素材库：列出本机 `materials/` 下参考音频（`name`/`size`/`mtime`） |
+| `/api/samples/file` | GET | 素材预览（`?name=xxx`，按扩展名回 `audio/*`，供 `<audio>` 试听） |
+| `/api/samples/add` | POST | 上传音频进素材库（multipart `file`，限 wav/mp3/m4a/aac/flac/ogg） |
+| `/api/samples/clone` | POST | 把素材「用作克隆参考」：服务端读文件 → 上传 OSS → `create_voice`，返回 `voice_id`（需 API Key） |
+| `/api/samples/rename` | POST | 重命名素材（`{old,new}`） |
+| `/api/samples/delete` | POST | 删除素材（`{name}`） |
 
 ### 后端实际调用的 DashScope 接口
 - 基础：`https://dashscope.aliyuncs.com/api/v1`（可用环境变量 `CLIPFORGE_DASHSCOPE_BASE` 覆盖，仅供本地自测/私有网关）

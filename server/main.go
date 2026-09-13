@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -25,6 +26,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -48,7 +50,7 @@ const (
 	// /api/config 以及前端页脚（由 app.js 注入）都取此处。
 	// 发版时只改这一处 + build-pkgs.py 的 VERSION。
 	// v3.2 起采用新方案「w<主.次>」：w = web/Go 端（Mac/iOS  Swift 端为 s）。
-	appVersion = "w.3.3"
+	appVersion = "w.3.4"
 )
 
 // 内嵌静态文件子系统(static/)
@@ -289,6 +291,275 @@ func uploadLocalFile(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"resource": resource})
+}
+
+// ============================================================
+// 音色素材库(本地 materials/ 文件夹)
+// 仿 Mac 版 VoiceKit.loadSamples():把参考音频(wav/mp3/m4a…)集中管理,
+// 前端可试听并一键「用作克隆参考」(服务端读文件 → 上传 OSS → createVoice)。
+// 落点在配置目录同级的 materials/(即 <UserConfigDir>/ClipForge/materials)。
+// ============================================================
+
+var sampleExts = map[string]bool{
+	".wav": true, ".mp3": true, ".m4a": true,
+	".aac": true, ".flac": true, ".ogg": true,
+}
+
+func materialsDir() string {
+	return filepath.Join(filepath.Dir(configPath()), "materials")
+}
+
+// safeJoin 把 name 拼到 dir 下,并校验结果仍落在 dir 内(防 ../ 穿越与非法扩展名)
+func safeJoin(dir, name string) (string, error) {
+	base := filepath.Base(name)
+	if base == "" || base == "." || strings.ContainsAny(name, "/\\") {
+		return "", errors.New("非法文件名")
+	}
+	if !sampleExts[strings.ToLower(filepath.Ext(base))] {
+		return "", errors.New("仅支持 wav/mp3/m4a/aac/flac/ogg")
+	}
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+	joined := filepath.Join(abs, base)
+	if joined != abs && !strings.HasPrefix(joined, abs+string(os.PathSeparator)) {
+		return "", errors.New("路径越界")
+	}
+	return joined, nil
+}
+
+func handleSamplesList(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		jsonError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	dir := materialsDir()
+	_ = os.MkdirAll(dir, 0755)
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	type item struct {
+		Name  string `json:"name"`
+		Size  int64  `json:"size"`
+		MTime int64  `json:"mtime"`
+	}
+	var items []item
+	for _, e := range entries {
+		if e.IsDir() || !sampleExts[strings.ToLower(filepath.Ext(e.Name()))] {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		items = append(items, item{Name: e.Name(), Size: info.Size(), MTime: info.ModTime().Unix()})
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].MTime > items[j].MTime })
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"dir": dir, "samples": items})
+}
+
+func handleSamplesFile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		jsonError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	name := r.URL.Query().Get("name")
+	p, err := safeJoin(materialsDir(), name)
+	if err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		jsonError(w, http.StatusNotFound, "素材不存在")
+		return
+	}
+	w.Header().Set("Content-Type", mimeForName(p))
+	w.Header().Set("Content-Disposition", `inline; filename="`+filepath.Base(p)+`"`)
+	w.Write(data)
+}
+
+func handleSamplesAdd(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		jsonError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	if err := r.ParseMultipartForm(100 << 20); err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(file)
+	if err != nil {
+		jsonError(w, http.StatusBadRequest, "读取文件失败: "+err.Error())
+		return
+	}
+	p, err := safeJoin(materialsDir(), header.Filename)
+	if err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	_ = os.MkdirAll(filepath.Dir(p), 0755)
+	if err := os.WriteFile(p, data, 0644); err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"name": filepath.Base(p)})
+}
+
+func handleSamplesClone(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		jsonError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	key := getAPIKey()
+	if key == "" {
+		jsonError(w, http.StatusUnauthorized, "未设置 API Key,请先在设置页填入")
+		return
+	}
+	var body struct {
+		Name   string `json:"name"`
+		Model  string `json:"model"`
+		Prefix string `json:"prefix"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if body.Model == "" {
+		body.Model = "cosyvoice-v3.5-plus"
+	}
+	if body.Prefix == "" {
+		body.Prefix = "myvoice"
+	}
+	p, err := safeJoin(materialsDir(), body.Name)
+	if err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		jsonError(w, http.StatusNotFound, "素材不存在: "+err.Error())
+		return
+	}
+	// 走与「声音克隆」相同的现行上传协议(GET getPolicy + OSS multipart)
+	resource, err := uploadToOSS(key, body.Model, filepath.Base(p), data)
+	if err != nil {
+		jsonError(w, http.StatusBadGateway, "上传 OSS 失败: "+err.Error())
+		return
+	}
+	voiceID, err := createVoiceRemote(key, body.Model, body.Prefix, resource)
+	if err != nil {
+		jsonError(w, http.StatusBadGateway, "创建音色失败: "+err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"voice_id": voiceID})
+}
+
+func handleSamplesRename(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		jsonError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var body struct {
+		Old string `json:"old"`
+		New string `json:"new"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	from, err := safeJoin(materialsDir(), body.Old)
+	if err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	to, err := safeJoin(materialsDir(), body.New)
+	if err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := os.Rename(from, to); err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"ok": "true", "name": filepath.Base(to)})
+}
+
+func handleSamplesDelete(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		jsonError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	var body struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	p, err := safeJoin(materialsDir(), body.Name)
+	if err != nil {
+		jsonError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := os.Remove(p); err != nil {
+		jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"ok": "true"})
+}
+
+// createVoiceRemote 调用 DashScope 声音克隆创建接口(与 web 端 /api/voice/create 同口径):
+// model=voice-enrollment,input.action=create_voice,target_model=实际克隆模型。
+func createVoiceRemote(key, model, prefix, ossURL string) (string, error) {
+	body, _ := json.Marshal(map[string]any{
+		"model": "voice-enrollment",
+		"input": map[string]any{
+			"action":       "create_voice",
+			"target_model": model,
+			"prefix":       prefix,
+			"url":          ossURL,
+		},
+	})
+	req, err := http.NewRequest("POST", dashScopeBase()+"/services/audio/tts/customization", bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+key)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("user-agent", "clipforge/"+appVersion)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(b))
+	}
+	var out struct {
+		Output struct {
+			VoiceID string `json:"voice_id"`
+		} `json:"output"`
+	}
+	if err := json.Unmarshal(b, &out); err != nil {
+		return "", fmt.Errorf("解析响应失败: %s", string(b))
+	}
+	return out.Output.VoiceID, nil
 }
 
 // uploadPolicy 是 getPolicy 返回的凭证字段(字段名与 Mac 版一一对应)
@@ -844,6 +1115,14 @@ func main() {
 
 	// 上传本地文件到 DashScope OSS
 	mux.HandleFunc("/api/upload", uploadLocalFile)
+
+	// 音色素材库(本地 materials/ 文件夹:列表/预览/上传进库/用作克隆参考/重命名/删除)
+	mux.HandleFunc("/api/samples/list", handleSamplesList)
+	mux.HandleFunc("/api/samples/file", handleSamplesFile)
+	mux.HandleFunc("/api/samples/add", handleSamplesAdd)
+	mux.HandleFunc("/api/samples/clone", handleSamplesClone)
+	mux.HandleFunc("/api/samples/rename", handleSamplesRename)
+	mux.HandleFunc("/api/samples/delete", handleSamplesDelete)
 
 	// 文生图(同步接口,直接代理)
 	mux.HandleFunc("/api/image", func(w http.ResponseWriter, r *http.Request) {
