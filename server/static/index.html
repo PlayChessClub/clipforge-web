@@ -68,7 +68,10 @@
       <h2>已有音色</h2>
       <div class="card">
         <div class="row">
-          <select id="voice-list" class="select"><option>— 加载中 —</option></select>
+          <label class="field">
+            <span>已克隆音色(voice_id)</span>
+            <select id="voice-list" class="select"><option>— 加载中 —</option></select>
+          </label>
           <button class="btn" id="voice-refresh">刷新</button>
         </div>
         <p class="hint">克隆好的 voice_id 可直接在「语音合成」页使用。</p>
@@ -350,7 +353,7 @@
   </div>
 
   <footer class="footer">
-    ClipForge <span id="app-version">w.3.2</span> · DashScope cosyvoice-v3.5 + wan2.6/2.7 + qwen-image-2.0（模型可选，见各页下拉）
+    ClipForge <span id="app-version">w.3.2</span> · DashScope cosyvoice / wan2.6–2.7 / qwen-image-2.0 · wan2.7-image（模型可选，见各页下拉）
   </footer>
 
   <script src="app.js"></script>

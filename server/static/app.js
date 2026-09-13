@@ -363,13 +363,17 @@ const PRICE = {
     ['cosyvoice-v2', '语音合成·稳定', '¥2.00 元/万字符'],
     ['voice-enrollment', '声音克隆', '随训练/合成出账'],
   ],
+  vector: [
+    ['qwen3.7-text-embedding-flash', '文本向量·手气Pro', '¥0.000125 元/千token'],
+    ['qwen-plus', '文本生成·手气Pro扩写', '输入 ¥0.00096 · 输出 ¥0.0024 元/千token'],
+  ],
 };
 function renderPrice() {
   const sec = (title, rows) => `
     <h3 class="price-title">${title}</h3>
     ${rows.map(r => `<div class="price-row"><span class="price-model">${r[0]}</span><span>${r[1]}</span><span class="price-num">${r[2]}</span></div>`).join('')}`;
   $('#price-list').innerHTML =
-    sec('视频生成', PRICE.video) + sec('图片生成', PRICE.image) + sec('语音', PRICE.audio);
+    sec('视频生成', PRICE.video) + sec('图片生成', PRICE.image) + sec('语音', PRICE.audio) + sec('向量与文本(试试手气 Pro)', PRICE.vector);
 }
 
 // ==================== 声音工坊(克隆) ====================
